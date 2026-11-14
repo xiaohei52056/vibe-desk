@@ -21,6 +21,20 @@ const emit = (): void => { document.dispatchEvent(new CustomEvent(TIE_EVENT)); }
 
 export const hasTie = (a: string, b: string): boolean => links.has(linkKey(a, b));
 
+/** 这颗星当前连着谁（只返回同层、且实体还在的那些） */
+export function tiesOf(id: string): string[] {
+  const noteSide = isNote(id);
+  const projectSide = !noteSide && isProject(id);
+  if (!noteSide && !projectSide) return [];
+  const out: string[] = [];
+  for (const l of links.values()) {
+    const other = l.a === id ? l.b : (l.b === id ? l.a : '');
+    if (!other || (noteSide ? !isNote(other) : !isProject(other))) continue;
+    out.push(other);
+  }
+  return out;
+}
+
 const isNote = (id: string): boolean => notes.has(id);
 const isProject = (id: string): boolean =>
   entityRows().some(r => r.id === id && r.kind === 'project');

@@ -23,6 +23,11 @@
   border-radius:4px;font-size:var(--fs-small);color:var(--warm);opacity:0;pointer-events:none;
   transition:opacity 240ms,transform 240ms;white-space:nowrap}
 #toast.show{opacity:1;transform:translate(-50%,0)}
+/* 只有带动作的提示才接管鼠标：普通 toast 仍让下层星图可以点 */
+#toast.show.actionable{pointer-events:auto}
+.toast-act{margin-left:14px;padding:2px 10px;border:1px solid rgba(201,160,99,.55);
+  border-radius:3px;background:transparent;color:#E8C37E;font:inherit;cursor:pointer}
+.toast-act:hover{background:rgba(232,195,126,.14);border-color:#E8C37E}
 
 @media (max-width:900px){
   #hud-top,#hud-bottom{padding:0 20px;font-size:var(--fs-micro)}

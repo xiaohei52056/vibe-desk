@@ -22,7 +22,8 @@ import { repairStorage } from './storage/db';
 import { loadView, rememberView } from './core/session';
 import { MOD_KEY } from './ui/platform';
 import { mountProjectLinks, relatedProjectIds, type ProjectLinksLayer } from './space/projectLinks';
-import { mountLinkGesture, type LinkGesture } from './space/linkGesture';
+import { mountLinkGesture, linkSource, type LinkGesture } from './space/linkGesture';
+import { cutTie } from './space/tieActions';
 import { migrateAutoTies, TIE_EVENT } from './notes/ties';
 
 const stage = document.getElementById('stage');
@@ -71,13 +72,15 @@ const entities = new Entities(entitiesEl, labelsEl, {
 projectLayer = mountProjectLinks(
   world,
   id => entities.rect(id),
-  () => getState().scene === 'code' && !getState().station
+  () => getState().scene === 'code' && !getState().station,
+  (a, b, la, lb) => { void cutTie(a, b, la, lb); }   // 项目线本体上的 ✕
 );
 
 // 长按连线：笔记↔笔记、项目↔项目，拖到目标松开或松手后点选
 linkGesture = mountLinkGesture(entitiesEl, world, {
   rectOf: id => entities.rect(id),
-  setVisual: (from, target, candidates) => entities.setLinkVisual(from, target, candidates)
+  setVisual: (from, target, candidates, cut) =>
+    entities.setLinkVisual(from, target, candidates, cut)
 });
 
 stationRef = new Station(stationEl, entities);
@@ -199,9 +202,12 @@ async function mount3d(): Promise<void> {
       const st = getState();
       const hotId = st.station ? '' : (st.focus ?? '');
       const just = walkedKey();
+      const src = linkSource();
       return threads().map(([a, b]) => {
+        // 连线态里，源星已经连着的那些线先亮起来：剪线前得看得见要剪哪条
+        const own = !!src && (src === a || src === b);
         const hot = (!!hotId && (hotId === a || hotId === b))
-          || (just !== null && just === linkKey(a, b));
+          || (just !== null && just === linkKey(a, b)) || own;
         // 没被点到的光丝压到六成：星多的时候它们不该抢正文与标签
         return {
           a, b,
@@ -573,7 +579,7 @@ window.addEventListener('pointerdown', (ev: PointerEvent) => {
   if (!s.station) return;
   const t = ev.target;
   if (t instanceof Element &&
-      t.closest('#station,#palette,#runner,#toast,#decisions,#hud-top,#hud-bottom,.entity')) return;
+      t.closest('#station,#palette,#runner,#toast,#decisions,#hud-top,#hud-bottom,#tie-tray,.proj-links,.entity')) return;
   // 与 Esc 同一套语义：书写态先退回观看态，观看态再收站
   if (s.mode === 'write') { void panel.teardown(); stationRef?.toView(); return; }
   stationRef?.close();
@@ -583,7 +589,7 @@ window.addEventListener('pointerdown', (ev: PointerEvent) => {
 // 与详情页的区别：这里点空白不能「按下即走」——按下往往是拖镜的开始，
 // 必须按下与抬起几乎在同一位置（<6px 位移）才算一次点击。
 let blankDown: { x: number; y: number } | null = null;
-const BLANK_HIT = '#station,#palette,#runner,#toast,#decisions,#hud-top,#hud-bottom,.entity';
+const BLANK_HIT = '#station,#palette,#runner,#toast,#decisions,#hud-top,#hud-bottom,#tie-tray,.proj-links,.entity';
 
 window.addEventListener('pointerdown', (ev: PointerEvent) => {
   blankDown = null;

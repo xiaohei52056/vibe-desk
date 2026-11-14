@@ -151,6 +151,50 @@ body.space3d .entity[data-kind="spider"] .dot::before{display:none}
 #entities.linking .entity.link-target .dot{
   box-shadow:0 0 0 2px #FFE3A8,0 0 0 20px rgba(232,195,126,.24)}
 #entities.linking .entity.link-target .cap b{opacity:1;color:#FFE3A8}
+/* 目标已经连着 → 这一下是「剪断」，不是「连接」：颜色先说明白 */
+.link-preview text.pv-hint{font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  fill:#FFE3A8;paint-order:stroke;stroke:#0C111B;stroke-width:3px;
+  stroke-linejoin:round;pointer-events:none}
+.link-preview.will-cut line{stroke:#E8A06B;stroke-dasharray:3 5}
+.link-preview.will-cut circle{fill:#FFC79E}
+.link-preview.will-cut text.pv-hint{fill:#FFC79E}
+#entities.linking .entity.link-target.link-cut .dot{
+  box-shadow:0 0 0 2px #E8A06B,0 0 0 20px rgba(232,160,107,.24)}
+#entities.linking .entity.link-target.link-cut .cap b{color:#FFC79E}
+
+/* ---------- 这颗星的线 · 剪线浮层 ---------- */
+#tie-tray{position:fixed;z-index:45;width:236px;max-height:280px;
+  display:flex;flex-direction:column;box-sizing:border-box;
+  padding:8px 10px 10px;border:1px solid rgba(201,160,99,.42);border-radius:6px;
+  background:rgba(18,25,36,.96);box-shadow:0 12px 34px rgba(0,0,0,.42);
+  font-size:var(--fs-small);color:var(--warm);pointer-events:auto}
+#tie-tray[hidden]{display:none}
+.tt-head{display:flex;align-items:center;justify-content:space-between;
+  font-family:var(--mono);font-size:var(--fs-micro);letter-spacing:.10em;
+  color:var(--gold);padding:2px 0 8px;border-bottom:1px solid rgba(201,160,99,.22)}
+.tt-close{background:none;border:0;color:#8FA0B8;font-size:16px;line-height:1;cursor:pointer;padding:0 2px}
+.tt-close:hover{color:#FFE3A8}
+.tt-list{overflow:auto;max-height:210px;padding:2px 0}
+.tt-row{display:flex;align-items:center;gap:8px;padding:5px 2px;
+  border-bottom:1px solid rgba(255,255,255,.05)}
+.tt-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;color:#C9D6EE}
+.tt-cut{flex:none;width:20px;height:20px;line-height:18px;text-align:center;
+  background:transparent;border:1px solid rgba(232,160,107,.4);border-radius:3px;
+  color:#E8A06B;font-size:10px;cursor:pointer;padding:0}
+.tt-cut:hover{background:rgba(232,160,107,.18);border-color:#E8A06B;color:#FFC79E}
+.tt-empty{color:#8FA0B8;font-size:var(--fs-micro);line-height:1.7;padding:8px 2px}
+
+/* ---------- 项目线本体上的 ✕ ---------- */
+.proj-links line.hit{stroke:transparent;stroke-width:18;
+  pointer-events:stroke;cursor:pointer}
+.proj-links .cut-badge{opacity:0;pointer-events:none;transition:opacity 160ms}
+.proj-links .cut-badge.show{opacity:1;pointer-events:auto;cursor:pointer}
+.proj-links .cut-badge circle{fill:rgba(20,28,40,.96);
+  stroke:rgba(232,160,107,.85);stroke-width:1}
+.proj-links .cut-badge text{fill:#FFC79E;font-size:12px;font-family:var(--mono);
+  text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.proj-links .cut-badge.show:hover circle{fill:rgba(232,160,107,.2)}
 /* 悬停一颗，相关项目一起亮，其余退到背景里 */
 .entity{transition:opacity 260ms ease}
 #entities.has-rel .entity:not(.focused):not(.related){opacity:.3}

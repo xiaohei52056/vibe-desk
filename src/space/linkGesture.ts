@@ -1,26 +1,39 @@
 /**
- * 长按连线：星图上唯一「新增关系」的入口。
+ * 长按连线：星图上「建线 / 剪线」的唯一入口。
  *
  * 两种完成方式都支持：
- *   1. 按住一颗星约 0.5 秒 → 拖出一条虚线 → 落到目标星上松开，立刻连上；
- *   2. 按住后原地松手 → 进入连线态 → 再点一下目标星完成。
- * 连到已经连着的星 = 断开；Esc / 点空白处 / 再点源星 = 取消。
+ *   1. 按住一颗星约 0.5 秒 → 拖出一条虚线 → 落到目标星上松开；
+ *   2. 按住后原地松手 → 进入连线态 → 再点一下目标星。
+ * 目标没连过 = 连接，已经连着 = 剪断（预览线会先变成琥珀色说明）。
+ * 连线态还会浮出「这颗星的线」，逐条 ✕ 剪断；剪完 4 秒内可撤销。
  *
  * 站体开着的时候不启动（书写态里改正文会和这里的自动落笔打架）。
- * 线本身由 notes/ties.ts 落库，这里只管手势与那条预览虚线。
+ * 关系的落库在 notes/ties.ts，动作与撤销在 tieActions.ts。
  */
 import { getState } from '../core/state';
 import { toast } from '../ui/toast';
-import { hasTie, connectTie, disconnectTie } from '../notes/ties';
+import { hasTie, tiesOf } from '../notes/ties';
+import { toggleTie, cutTie } from './tieActions';
+import { mountTieTray } from './tieTray';
 
 const NS = 'http://www.w3.org/2000/svg';
 const HOLD_MS = 500;
 const MOVE_TOL = 9;
+const DRAG_TRAY_TOL = 14;
 const CLICK_GUARD_MS = 400;
+
+/** 3D 光丝渲染层要读：连线态下把源星已有的线点亮，方便看清要剪哪条 */
+let activeLinkSource: string | null = null;
+export const linkSource = (): string | null => activeLinkSource;
 
 export interface LinkGestureHooks {
   rectOf(id: string): DOMRect | null;
-  setVisual(from: string | null, target: string | null, candidates: ReadonlySet<string>): void;
+  setVisual(
+    from: string | null,
+    target: string | null,
+    candidates: ReadonlySet<string>,
+    cut?: boolean
+  ): void;
 }
 
 export interface LinkGesture {
@@ -44,7 +57,9 @@ export function mountLinkGesture(
   const line = document.createElementNS(NS, 'line');
   const dot = document.createElementNS(NS, 'circle');
   dot.setAttribute('r', '3.2');
-  svg.append(line, dot);
+  const hint = document.createElementNS(NS, 'text');
+  hint.setAttribute('class', 'pv-hint');
+  svg.append(line, dot, hint);
   host.appendChild(svg);
 
   let phase: Phase = 'idle';
@@ -52,10 +67,12 @@ export function mountLinkGesture(
   let kind = '';
   let candidates: ReadonlySet<string> = new Set();
   let target: string | null = null;
+  let cutMode = false;
   let sx = 0, sy = 0, cx = 0, cy = 0;
   let hold = 0;
   let guard = 0;
   let ignoreClick = false;
+  let trayHidden = false;
   let raf = 0;
 
   const labelOf = (id: string): string =>
@@ -63,6 +80,20 @@ export function mountLinkGesture(
 
   const kindOf = (id: string): string =>
     root.querySelector<HTMLElement>(`.entity[data-id="${id}"]`)?.dataset['kind'] ?? '';
+
+  const anchor = (): { x: number; y: number } => {
+    const r = hooks.rectOf(from);
+    return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : { x: sx, y: sy };
+  };
+
+  const tray = mountTieTray({
+    tiesOf,
+    labelOf,
+    onCut: async (a, b, la, lb) => {
+      const ok = await cutTie(a, b, la, lb);
+      if (!ok) toast('这条线已经不在了');
+    }
+  });
 
   const hit = (x: number, y: number): { id: string; kind: string } | null => {
     const el = document.elementFromPoint(x, y);
@@ -84,17 +115,26 @@ export function mountLinkGesture(
   };
 
   const paintVisual = (): void => {
-    hooks.setVisual(phase === 'idle' || phase === 'press' ? null : from, target, candidates);
+    cutMode = !!target && hasTie(from, target);
+    const shown = phase !== 'idle' && phase !== 'press';
+    hooks.setVisual(shown ? from : null, target, candidates, cutMode);
+    svg.classList.toggle('will-cut', cutMode);
   };
 
   const clear = (): void => {
     clearTimeout(hold);
     phase = 'idle';
+    activeLinkSource = null;
     from = '';
     kind = '';
     target = null;
+    cutMode = false;
     candidates = new Set();
+    trayHidden = false;
+    tray.hide();
     svg.style.display = 'none';
+    svg.classList.remove('will-cut');
+    hint.style.display = 'none';
     paintVisual();
   };
 
@@ -110,11 +150,8 @@ export function mountLinkGesture(
     const b = to;
     const la = labelOf(a);
     const lb = labelOf(b);
-    const existed = hasTie(a, b);
-    const job = existed ? disconnectTie(a, b) : connectTie(a, b);
-    void job.then(ok => {
-      if (!ok) { toast('这两颗星连不上 · 只能同层互连'); return; }
-      toast(existed ? `已断开 ${la} ↔ ${lb}` : `已连接 ${la} ↔ ${lb}`);
+    void toggleTie(a, b, la, lb).then(ok => {
+      if (!ok) toast('这两颗星连不上 · 只能同层互连');
     });
     clear();
     armGuard();
@@ -123,9 +160,13 @@ export function mountLinkGesture(
   const startLinking = (): void => {
     if (phase !== 'press') return;
     phase = 'drag';
+    activeLinkSource = from;
     candidates = peers();
     paintVisual();
-    toast('拖到目标星松开，或松手后再点一颗 · Esc 取消');
+    const p = anchor();
+    trayHidden = false;
+    tray.show(from, p.x, p.y);
+    toast('拖到目标星松开 · 已连的会断开 · 浮层里可剪线');
   };
 
   const frame = (): void => {
@@ -146,6 +187,14 @@ export function mountLinkGesture(
     line.setAttribute('y2', y2.toFixed(1));
     dot.setAttribute('cx', x2.toFixed(1));
     dot.setAttribute('cy', y2.toFixed(1));
+    if (target) {
+      hint.textContent = cutMode ? '松手断开' : '松手连接';
+      hint.setAttribute('x', (x2 + 14).toFixed(1));
+      hint.setAttribute('y', (y2 - 12).toFixed(1));
+      hint.style.display = '';
+    } else {
+      hint.style.display = 'none';
+    }
     svg.style.display = '';
   };
   raf = requestAnimationFrame(frame);
@@ -154,6 +203,8 @@ export function mountLinkGesture(
 
   const onDown = (ev: PointerEvent): void => {
     if (ev.button !== 0) return;
+    // 剪线浮层与带「撤销」的提示都不算点空白：点撤销时保持连线态，浮层好跟着刷新
+    if (ev.target instanceof Element && ev.target.closest('#tie-tray,#toast')) return;
     const n = ev.target instanceof Element
       ? ev.target.closest<HTMLElement>('.entity') : null;
     const onEntity = !!n && root.contains(n);
@@ -186,6 +237,11 @@ export function mountLinkGesture(
       return;
     }
     if (phase !== 'drag' && phase !== 'armed') return;
+    // 真开始拖了就把浮层收起来，免得挡住目标星
+    if (phase === 'drag' && !trayHidden && Math.hypot(cx - sx, cy - sy) > DRAG_TRAY_TOL) {
+      trayHidden = true;
+      tray.hide();
+    }
     const h = hit(cx, cy);
     const next = valid(h) ? h!.id : null;
     if (next !== target) { target = next; paintVisual(); }
@@ -202,11 +258,14 @@ export function mountLinkGesture(
     cy = ev.clientY;
     const h = hit(cx, cy);
     if (valid(h)) { complete(h!.id); return; }
-    // 原地松手 → 进入连线态，等下一次点选
+    // 原地松手 → 进入连线态，浮层列出这颗星的所有线，可逐条剪断
     phase = 'armed';
     target = null;
     paintVisual();
-    toast(`从「${labelOf(from)}」连出去 · 点另一颗星完成，Esc 取消`);
+    const p = anchor();
+    trayHidden = false;
+    tray.show(from, p.x, p.y);
+    toast(`「${labelOf(from)}」· 点另一颗星连接/断开 · 浮层里可剪线`);
     armGuard();
   };
 
@@ -248,6 +307,7 @@ export function mountLinkGesture(
       clear();
       clearTimeout(guard);
       cancelAnimationFrame(raf);
+      tray.destroy();
       window.removeEventListener('pointerdown', onDown);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);

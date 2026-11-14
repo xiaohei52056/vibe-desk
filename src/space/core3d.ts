@@ -731,7 +731,7 @@ export class Core3D {
    * 会截走空白处的 pointerdown，绑在 host 上永远收不到事件。
    */
   private static readonly UI_HIT =
-    '.entity,#station,#palette,#hud-top,#hud-bottom,#toast,#runner,#decisions,button,input,textarea';
+    '.entity,#station,#palette,#hud-top,#hud-bottom,#toast,#runner,#decisions,#tie-tray,.proj-links,button,input,textarea';
 
   /** 拖拽 orbit：按住空白处拖动 = 绕星核 360° 环绕（水平不限圈数，俯仰近全向） */
   private bindDrag(): void {

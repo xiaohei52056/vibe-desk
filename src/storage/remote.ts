@@ -82,21 +82,21 @@ async function fetchBundle(): Promise<Bundle | null> {
   }
 }
 
-/** 手动连线：立刻把一条关系送到云端。离线就静默放弃，本地数据不受影响 */
+/** 手动连线：立刻把一条关系送到云端。PUT/DELETE 幂等，两个基址都可以试 */
 export async function putTieRemote(row: LinkRow): Promise<void> {
   try {
     await apiFetch('/links', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(row)
-    }, false);
+    });
   } catch { /* 离线 */ }
 }
 
 /** 手动断开：云端那条也删掉，避免下次自动同步把它补回来 */
 export async function deleteTieRemote(key: string): Promise<void> {
   try {
-    await apiFetch('/links/' + encodeURIComponent(key), { method: 'DELETE' }, false);
+    await apiFetch('/links/' + encodeURIComponent(key), { method: 'DELETE' });
   } catch { /* 离线 */ }
 }
 
