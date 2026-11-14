@@ -12,7 +12,7 @@ import { notes, links, idOfTitle, patchNote } from './store';
 import { linkKey, invalidateThreads, LINK } from './links';
 import { parseLinks } from './parse';
 import { putOne, delOne, metaGet, metaSet, type LinkRow } from '../storage/db';
-import { addTombstone, clearTombstone, tombstoned } from '../storage/tombstones';
+import { addTombstone, clearTombstone, tombstoned, serverTombstones } from '../storage/tombstones';
 import { entityRows, entityTags } from '../storage/entityData';
 import { putTieRemote, deleteTieRemote } from '../storage/remote';
 
@@ -125,7 +125,8 @@ export async function migrateAutoTies(): Promise<number> {
   // 实体配置还没到位（全新浏览器 + 后端没开）时先不落 flag，
   // 等下次启动拿到项目卡再把那几条线补齐
   if (!entityRows().length) return 0;
-  const tombs = await tombstoned();
+  // 本地墓碑 + 云端墓碑合并：新设备没有本地记录，剪掉的线靠云端这份拦住
+  const tombs = new Set<string>([...(await tombstoned()), ...(await serverTombstones())]);
   const pairs: [string, string][] = [];
 
   // 正文 [[双链]] 派生过的线

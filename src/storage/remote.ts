@@ -13,12 +13,12 @@
  * 这样静态构建版、别的端口打开时也能连到本机后端。
  */
 import {
-  getAll, putOne,
+  getAll, putOne, delOne,
   type DecisionRow, type EntityRow, type LinkRow, type Note, type ReviewRow
 } from './db';
 import type { AssetRow } from '../notes/images';
 import { applyBundle, buildBundle, type AssetPack, type Bundle } from './transfer';
-import { tombstoned } from './tombstones';
+import { tombstoned, serverTombstones } from './tombstones';
 
 const API_BASES = ['/api', 'http://localhost:8080/api'];
 const API_TIMEOUT = 2500;
@@ -135,6 +135,16 @@ export async function autoSyncFromCloud(): Promise<AutoSyncReport> {
       if (tombs.has(l.key)) continue;
       const cur = localLinks.get(l.key);
       if (!cur || l.lastWalkedAt > cur.lastWalkedAt) await putOne('links', l);
+    }
+
+    // 云端墓碑对账：本地有、云端没有、云端墓碑里记着的线 = 演示种子或旧迁移
+    // 复活出来的残渣 —— 就地清掉。新设备空库会先落种子线，全靠这一步拉齐。
+    const srvTombs = await serverTombstones();
+    if (srvTombs.size) {
+      const cloudKeys = new Set(bundle.links.map(l => l.key));
+      for (const l of localLinks.values()) {
+        if (srvTombs.has(l.key) && !cloudKeys.has(l.key)) await delOne('links', l.key);
+      }
     }
 
     // 回看：到期时间更靠后的那份更接近真实进度

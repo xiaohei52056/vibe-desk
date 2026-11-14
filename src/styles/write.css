@@ -92,6 +92,39 @@
 }
 #runner[data-open="1"] { display: flex; }
 
+/* 编译窗口打开：纸面分两半 —— 左边笔记（标题+正文+决策），右边编译实验室。
+   纯 CSS 方案（:has 探测开启态），窄屏不支持分栏时自动回退为原来的上下排布。 */
+@media (min-width: 901px) {
+  @supports selector(.wc-paper:has(> #runner[data-open="1"])) {
+    .wc-paper:has(> #runner[data-open="1"]) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      grid-template-areas:
+        "title  runner"
+        "editor runner"
+        "dec    runner";
+      column-gap: 18px;
+      max-width: none;
+      padding: 24px 26px 8px;
+    }
+    .wc-paper:has(> #runner[data-open="1"]) .wc-title { grid-area: title; }
+    .wc-paper:has(> #runner[data-open="1"]) #note-host { grid-area: editor; margin-top: 8px; }
+    .wc-paper:has(> #runner[data-open="1"]) #decisions { grid-area: dec; margin-top: 6px; }
+    .wc-paper:has(> #runner[data-open="1"]) #runner {
+      grid-area: runner;
+      height: auto;
+      max-height: none;
+      margin-top: 0;
+    }
+    /* 面板高了：代码区与输出区一起长，不再是 112px 的缝 */
+    .wc-paper:has(> #runner[data-open="1"]) .runner-code {
+      flex: 1 1 46%; height: auto; min-height: 96px;
+    }
+    .wc-paper:has(> #runner[data-open="1"]) .runner-out { flex: 1 1 54%; }
+  }
+}
+
 .runner-bar {
   flex: none;
   height: 34px;

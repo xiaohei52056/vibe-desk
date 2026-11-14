@@ -152,17 +152,19 @@ export class Station {
     const H = innerHeight;
     const r = this.entities.rect(e.id);
     if (mode === 'write') {
+      // 书写态基本铺满；runner 打开时要分左右两半，四周留白再收一档
       return {
-        left: Math.max(20, W * .035),
-        top: Math.max(18, H * .045),
-        width: W - Math.max(40, W * .07),
-        height: H - Math.max(36, H * .09)
+        left: Math.max(14, W * .018),
+        top: Math.max(14, H * .028),
+        width: W - Math.max(28, W * .036),
+        height: H - Math.max(28, H * .056)
       };
     }
     const narrow = W < 720;
-    // 自适应：窄屏（手机 / 分屏）不再按比例缩成一条缝，直接贴边铺开
-    const w = narrow ? W - 24 : Math.min(780, W * .62);
-    const h = narrow ? Math.min(H - 96, 520) : Math.min(500, H * .66);
+    // 自适应：窄屏（手机 / 分屏）不再按比例缩成一条缝，直接贴边铺开；
+    // 大屏给到七成宽、接近全高 —— 看正文不必再委屈
+    const w = narrow ? W - 24 : Math.min(940, W * .72);
+    const h = narrow ? Math.min(H - 96, 520) : Math.min(640, H * .78);
     if (narrow) {
       return {
         left: Math.max(12, W * .03),
@@ -176,8 +178,8 @@ export class Station {
     const dirX = anchorLeft > W * .56 ? -1 : 1;
     let left = dirX > 0 ? anchorLeft + 22 : anchorLeft - w - 22;
     let top = anchorTop - 40;
-    left = Math.max(24, Math.min(left, W - w - 24));
-    top = Math.max(64, Math.min(top, H - h - 24));
+    left = Math.max(20, Math.min(left, W - w - 20));
+    top = Math.max(56, Math.min(top, H - h - 20));
     return { left, top, width: w, height: h };
   }
 
