@@ -8,7 +8,13 @@ import com.vibedesk.entity.SiteEntity;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 完整种子数据：项目设计原则 + JavaWeb / Python 学习笔记 + 真实决策。
@@ -295,6 +301,15 @@ public class SeedData {
         addLink(links, t - 2 * DAY, .9, "n2", "n7");
         addLink(links, t, .8, "n3", "n18");
 
+        // 关系只认显式记录：把正文里写过的 [[双链]] 固化成线，
+        // 这样首次启动的星图和老版本一致，但此后不再由正文自动长线。
+        materializeBodyLinks(notes, links, t);
+
+        // 项目星系的三条关系（原先由共享标签推导，现在同样固化为显式记录）
+        addLink(links, t, 1.2, "p1", "p2");
+        addLink(links, t, 1.0, "p1", "p3");
+        addLink(links, t, 1.0, "p2", "p3");
+
         /* ---------------- 回看卡 7 张 ---------------- */
         List<ReviewCard> review = List.of(
                 card("n1", t - 7 * DAY, 7),     // 到期
@@ -368,6 +383,34 @@ public class SeedData {
         e.setDetail(detail);
         e.setUpdatedAt(at);
         return e;
+    }
+
+    private static final Pattern WIKI_LINK = Pattern.compile("\\[\\[([^\\]|]+)(?:\\|[^\\]]+)?\\]\\]");
+
+    /** 把正文里已存在的 [[双链]] 变成 links 表的显式记录（去重，不覆盖已有权重） */
+    private static void materializeBodyLinks(List<Note> notes, List<NoteLink> links, long t) {
+        Map<String, String> byTitle = new HashMap<>();
+        for (Note n : notes) byTitle.put(n.getTitle(), n.getId());
+        Set<String> seen = new HashSet<>();
+        for (NoteLink l : links) seen.add(l.getLinkKey());
+        for (Note n : notes) {
+            Matcher m = WIKI_LINK.matcher(n.getBody() == null ? "" : n.getBody());
+            while (m.find()) {
+                String to = byTitle.get(m.group(1).trim());
+                if (to == null || to.equals(n.getId())) continue;
+                String x = n.getId().compareTo(to) < 0 ? n.getId() : to;
+                String y = n.getId().compareTo(to) < 0 ? to : n.getId();
+                String key = x + "~" + y;
+                if (!seen.add(key)) continue;
+                NoteLink l = new NoteLink();
+                l.setLinkKey(key);
+                l.setA(x);
+                l.setB(y);
+                l.setW(1.0);
+                l.setLastWalkedAt(t);
+                links.add(l);
+            }
+        }
     }
 
     private static Note note(String id, String title, long createdAt, long updatedAt, String body) {

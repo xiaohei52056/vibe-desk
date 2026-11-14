@@ -22,6 +22,8 @@ import { repairStorage } from './storage/db';
 import { loadView, rememberView } from './core/session';
 import { MOD_KEY } from './ui/platform';
 import { mountProjectLinks, relatedProjectIds, type ProjectLinksLayer } from './space/projectLinks';
+import { mountLinkGesture, type LinkGesture } from './space/linkGesture';
+import { migrateAutoTies, TIE_EVENT } from './notes/ties';
 
 const stage = document.getElementById('stage');
 const world = document.getElementById('world');
@@ -42,6 +44,7 @@ new Camera(stage);
 
 let stationRef: Station | null = null;
 let projectLayer: ProjectLinksLayer | null = null;
+let linkGesture: LinkGesture | null = null;
 const entities = new Entities(entitiesEl, labelsEl, {
   activate: (id) => { activateEntity(id); },
   focus: (id) => {
@@ -54,7 +57,7 @@ const entities = new Entities(entitiesEl, labelsEl, {
       return;
     }
     const found = findEntity(id);
-    // 项目星系：悬停时把共享标签的项目一起点亮，光丝同步高亮
+    // 项目星系：悬停时把手动连着的项目一起点亮，光丝同步高亮
     const inProjects = s.scene === 'code';
     // 项目星自带标签，悬停提示气泡会和它叠成两份字 —— 这里让位给关系高亮
     entities.setFocus(id, inProjects ? undefined : found?.e);
@@ -70,6 +73,12 @@ projectLayer = mountProjectLinks(
   id => entities.rect(id),
   () => getState().scene === 'code' && !getState().station
 );
+
+// 长按连线：笔记↔笔记、项目↔项目，拖到目标松开或松手后点选
+linkGesture = mountLinkGesture(entitiesEl, world, {
+  rectOf: id => entities.rect(id),
+  setVisual: (from, target, candidates) => entities.setLinkVisual(from, target, candidates)
+});
 
 stationRef = new Station(stationEl, entities);
 stationRef.onDelete = (id) => { void removeNote(id); };
@@ -95,6 +104,8 @@ function exitScene(): void {
  * 落位后再切层（丝滑进出）；其余实体照旧走站体。core3d 未加载 / 动画中 / 锁定时直接回退。
  */
 function activateEntity(id: string): void {
+  // 连线态下这一下点击是「选目标」，不是「开站」
+  if (linkGesture?.handleActivate(id)) return;
   const found = findEntity(id);
   if (!found) return;
   const e = found.e;
@@ -126,6 +137,7 @@ function paint(): void {
 
   if (s.scene !== lastScene) {
     lastScene = s.scene;
+    linkGesture?.cancel();       // 切层时退出连线态，别把源星带到另一个星系
     entities.render(s.scene);
     // #world 必须保持 scale(1)：它包着锚定实体，任何缩放都会把标签推离各自的星云
     world!.style.transform = 'scale(1)';
@@ -434,6 +446,12 @@ document.addEventListener('vibe:search-tag', ev => {
   if (tag) palette.open('search', '#' + tag);
 });
 
+// 连线变了：项目星座的 SVG 要按新的显式关系重建（笔记光丝每帧读缓存，已失效）
+document.addEventListener(TIE_EVENT, () => {
+  projectLayer?.refresh();
+  entities.setRelated(new Set());
+});
+
 /** A5：关掉再开，回到上次位置 + 上次工位。截图/演示参数优先，别被记忆覆盖 */
 async function restoreView(): Promise<void> {
   const q = new URLSearchParams(location.search);
@@ -458,6 +476,9 @@ void initNotes().then(async report => {
     await Promise.all([initReview(), initDecisions()]);
   }
   await initEntityRows();          // 光门 / 项目卡配置（本地或刚同步来的）
+  // 一次性把旧的「自动派生线」固化成显式关系：已有的线不会消失，此后只认手动连线
+  const migrated = await migrateAutoTies();
+  if (migrated) console.info('[ties] 已固化', migrated, '条原有连线');
   syncIndex();
   syncExtras();
   rerenderEntities();
@@ -476,6 +497,7 @@ void initNotes().then(async report => {
         await initNotes();
         await Promise.all([initReview(), initDecisions()]);
         await initEntityRows();
+        await migrateAutoTies();
         syncIndex();
         syncExtras();
         rerenderEntities();

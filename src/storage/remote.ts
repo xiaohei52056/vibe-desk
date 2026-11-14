@@ -18,6 +18,7 @@ import {
 } from './db';
 import type { AssetRow } from '../notes/images';
 import { applyBundle, buildBundle, type AssetPack, type Bundle } from './transfer';
+import { tombstoned } from './tombstones';
 
 const API_BASES = ['/api', 'http://localhost:8080/api'];
 const API_TIMEOUT = 2500;
@@ -81,6 +82,24 @@ async function fetchBundle(): Promise<Bundle | null> {
   }
 }
 
+/** 手动连线：立刻把一条关系送到云端。离线就静默放弃，本地数据不受影响 */
+export async function putTieRemote(row: LinkRow): Promise<void> {
+  try {
+    await apiFetch('/links', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(row)
+    }, false);
+  } catch { /* 离线 */ }
+}
+
+/** 手动断开：云端那条也删掉，避免下次自动同步把它补回来 */
+export async function deleteTieRemote(key: string): Promise<void> {
+  try {
+    await apiFetch('/links/' + encodeURIComponent(key), { method: 'DELETE' }, false);
+  } catch { /* 离线 */ }
+}
+
 function b64ToBlob(data: string, mime: string): Blob {
   const bin = atob(data);
   const buf = new Uint8Array(bin.length);
@@ -108,9 +127,12 @@ export async function autoSyncFromCloud(): Promise<AutoSyncReport> {
       else if (n.updatedAt > cur.updatedAt) { await putOne('notes', n); updated++; }
     }
 
-    // 双链：按 key 合并，最近「走过」的那份胜
+    // 双链：按 key 合并，最近「走过」的那份胜。
+    // 用户在本地手动断开的关系有墓碑，云端那份必须跳过，否则等于没断开。
     const localLinks = new Map((await getAll<LinkRow>('links')).map(l => [l.key, l]));
+    const tombs = await tombstoned();
     for (const l of bundle.links) {
+      if (tombs.has(l.key)) continue;
       const cur = localLinks.get(l.key);
       if (!cur || l.lastWalkedAt > cur.lastWalkedAt) await putOne('links', l);
     }

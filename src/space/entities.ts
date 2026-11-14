@@ -170,4 +170,15 @@ export class Entities {
       n.classList.toggle('related', !!id && ids.has(id));
     });
   }
+
+  /** 长按连线：源星、可连的候选、当前指着的目标，各自给一圈光 */
+  setLinkVisual(from: string | null, target: string | null, candidates: ReadonlySet<string>): void {
+    this.root.classList.toggle('linking', !!from);
+    this.root.querySelectorAll<HTMLElement>('.entity').forEach(n => {
+      const id = n.dataset['id'] ?? '';
+      n.classList.toggle('link-source', !!from && id === from);
+      n.classList.toggle('link-target', !!target && id === target);
+      n.classList.toggle('linkable', !!from && candidates.has(id));
+    });
+  }
 }

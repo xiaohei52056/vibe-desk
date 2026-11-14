@@ -9,8 +9,7 @@
  * 也不导出任何「排名」「总数」之类可以被拿去做仪表盘的东西。
  */
 import { getState, setState } from '../core/state';
-import { links, notes, idOfTitle, onNotes } from './store';
-import { parseLinks } from './parse';
+import { links, notes, onNotes } from './store';
 import { putOne, type LinkRow } from '../storage/db';
 
 const DAY = 86400000;
@@ -58,10 +57,9 @@ export function linkNorm(w: number): number {
 }
 
 /* ============================================================
-   关联集合 = 预置的设计关联（在 links 里）∪ 正文里写下的 [[双链]]
-   —— 预置部分保证初始星图的疏密不被削弱；
-   —— 正文部分让新写的关联自己长出来。
-   两者都只影响「线」，不影响恒星的坐标与大小。
+   关联集合 = links 表里的显式关系（只取两端都是笔记的那些）。
+   正文 [[双链]] 只是文字，不再自动长线；项目之间的线由 projectLinks 读同一张表。
+   要连线，在星图上长按一颗星拖到另一颗 —— 见 notes/ties.ts。
    ============================================================ */
 
 let cache: readonly (readonly [string, string])[] | null = null;
@@ -78,12 +76,6 @@ function build(): readonly (readonly [string, string])[] {
     out.push([a, b] as const);
   };
   for (const l of links.values()) push(l.a, l.b);
-  for (const n of notes.values()) {
-    for (const title of parseLinks(n.body)) {
-      const to = idOfTitle(title);
-      if (to) push(n.id, to);
-    }
-  }
   return Object.freeze(out);
 }
 
@@ -94,7 +86,7 @@ export function threads(): readonly (readonly [string, string])[] {
 
 export const invalidateThreads = (): void => { cache = null; };
 
-// 正文一变，可能长出新的 [[双链]]；正文或标题一变，标题索引也跟着变
+// 笔记增删会让「两端都在」这个条件变化；手动连线则显式调 invalidateThreads()
 onNotes(() => { cache = null; });
 
 /**
@@ -102,14 +94,16 @@ onNotes(() => { cache = null; });
  *
  * 只从「顺着引用跳过去」这一种动作触发 —— 点反链、点正文里的双链。
  * 用搜索跳过去不算：搜索是去找东西，不是在联想。
+ * 注意：只给已经存在的显式关系加权，绝不因为点了正文里的 [[名字]] 就新建一条线。
  */
 export function walkThread(from: string, to: string): void {
   if (!from || !to || from === to) return;
   if (!notes.has(from) || !notes.has(to)) return;
 
   const key = linkKey(from, to);
+  const cur = links.get(key);
+  if (!cur) return;
   const [a, b] = from < to ? [from, to] : [to, from];
-  const cur: LinkRow = links.get(key) ?? { key, a, b, w: LINK.W0, lastWalkedAt: 0 };
   const next: LinkRow = {
     ...cur,
     a,

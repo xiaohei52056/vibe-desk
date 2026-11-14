@@ -22,8 +22,6 @@ import { latestOf } from '../notes/decisions';
 import { assetUrl, imagesOf } from '../notes/images';
 import type { Note } from '../storage/db';
 import { entityDetail, entityOf } from '../storage/entityData';
-import { relatedProjectIds } from '../space/projectLinks';
-import { threads } from '../notes/links';
 import { EASE_OUT, MOTION, growthOrigin, reverseMs, type Segment } from './motion';
 
 interface Box { left: number; top: number; width: number; height: number }
@@ -464,28 +462,11 @@ export class Station {
     if (!fields) return;
     fields.textContent = '';
 
-    // 观看态字段只放「一眼能懂、且点了有用」的东西：
-    //   关联能跳到别的星、标签能按标签搜、更新是真实状态。
-    //   「生长 / 幼苗」这类黑话和「按 Tab 改」这类操作提示都从这里挪走了。
+    // 观看态字段只放「一眼能懂、且点了有用」的东西。
+    //   关联不在这里列：关系交给星图上的线，建立方式是在星图上长按一颗星拖到另一颗。
+    //   「生长 / 幼苗」这类黑话和「按 Tab 改」这类操作提示也都不放进来。
     const ent = entityOf(e.id);
     const detail = entityDetail(e.id);
-
-    const linked = threads()
-      .filter(([a, b]) => a === e.id || b === e.id)
-      .map(([a, b]) => a === e.id ? b : a)
-      .map(id => ({ id, title: noteOf(id)?.title }))
-      .filter((x): x is { id: string; title: string } => !!x.title);
-
-    const linkedBox = document.createElement('span');
-    if (linked.length) {
-      linked.slice(0, 3).forEach((x, i) => {
-        if (i) linkedBox.append('、');
-        linkedBox.appendChild(chip(x.title, () => this.open(x.id)));
-      });
-      if (linked.length > 3) linkedBox.append(` 等 ${linked.length} 篇`);
-    } else {
-      linkedBox.textContent = '写 [[笔记名]] 就能连上别的星';
-    }
 
     const tagBox = document.createElement('span');
     const tags = parseTags(body);
@@ -497,37 +478,23 @@ export class Station {
       tagBox.textContent = '—';
     }
 
-    const relIds = [...relatedProjectIds(e.id)];
-    const relBox = document.createElement('span');
-    if (relIds.length) {
-      relIds.slice(0, 3).forEach((id, i) => {
-        if (i) relBox.append('、');
-        relBox.appendChild(chip(entityOf(id)?.label ?? id, () => this.open(id)));
-      });
-    } else {
-      relBox.textContent = '暂时没有关联项目';
-    }
-
     const rows: FieldRow[] = e.kind === 'project'
       ? [['简介', detail['summary'] || '—'],
          ['技术栈', detail['stack'] || '—'],
-         ['关联', relBox],
          ['仓库', ent?.url || '未配置', ent?.url || undefined]]
       : e.kind === 'gate'
         ? [['性质', '站外网站入口，非台内纪念内容'],
            ['URL', ent?.url || '未配置 · 待提供', ent?.url || undefined],
            ['打开', ent?.url ? '点击光门 · 新标签页' : 'URL 未配置']]
-        : [['关联', linkedBox],
-           ['标签', tagBox],
+        : [['标签', tagBox],
            // 副标题已给了「3 天前」这种相对时间，这里补一个确切日期才不重复
            ['改动', note ? new Date(note.updatedAt).toLocaleString('zh-CN', {
              year: 'numeric', month: '2-digit', day: '2-digit',
              hour: '2-digit', minute: '2-digit', hour12: false
            }) : '—']];
 
-    rows.forEach(([k, v, href], i) => {
+    rows.forEach(([k, v, href]) => {
       const d = document.createElement('div');
-      if (i === 2) d.className = 'next';
       const b = document.createElement('b');
       b.textContent = k;
       const span = document.createElement('span');
