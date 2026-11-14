@@ -30,6 +30,7 @@ export type VaultError =
   | { kind: 'missing'; repo: string }
   | { kind: 'empty'; repo: string }
   | { kind: 'ratelimit' }
+  | { kind: 'toolarge'; path: string }
   | { kind: 'offline' };
 
 const CFG_KEY = 'vibedesk.vault.cfg';
@@ -183,4 +184,48 @@ export async function downloadFile(url: string, filename: string): Promise<void>
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* ---------------- 文件内容：双通道 ---------------- */
+
+/**
+ * 取文件内容。raw.githubusercontent.com 在不少网络环境下不可达（DNS 污染），
+ * 所以 raw 直链失败时自动切换 GitHub Contents API（base64，仅 1MB 内文件）。
+ * wantBlob=true 返回 Blob（图片/pdf/下载用），false 返回解码后的文本。
+ */
+export async function fetchContent(
+  cfg: VaultConfig,
+  path: string,
+  wantBlob: boolean
+): Promise<Blob | string> {
+  try {
+    const raw = await fetch(rawUrl(cfg, path));
+    if (raw.ok) return wantBlob ? await raw.blob() : await raw.text();
+  } catch { /* raw 不可达 → 走 API 兜底 */ }
+
+  const apiPath = path.split('/').map(encodeURIComponent).join('/');
+  const res = await fetch(
+    `https://api.github.com/repos/${cfg.repo}/contents/${apiPath}?ref=${cfg.branch}`,
+    { headers: { Accept: 'application/vnd.github+json' } }
+  );
+  if (res.status === 404) throw { kind: 'missing', repo: cfg.repo } as VaultError;
+  if (res.status === 403) throw { kind: 'ratelimit' } as VaultError;
+  if (!res.ok) throw { kind: 'offline' } as VaultError;
+  const data = await res.json() as { content?: string; encoding?: string; size?: number };
+  if (data.encoding !== 'base64' || !data.content) {
+    throw { kind: 'toolarge', path } as VaultError;
+  }
+  const bin = atob(data.content.replace(/\n/g, ''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  if (wantBlob) return new Blob([bytes]);
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+/** 统一的人话错误文案：面板 catch 里直接用 */
+export function contentErrorText(err: unknown, name: string): string {
+  const kind = (err as { kind?: string })?.kind;
+  if (kind === 'toolarge') return `${name} 超过 1MB · 当前网络拿不到 raw 直链，换网络/代理后再试`;
+  if (kind === 'ratelimit') return 'GitHub 接口次数暂时用完（60 次/小时）· 稍后再试';
+  return `${name} 内容加载失败 · 检查网络后重试`;
 }

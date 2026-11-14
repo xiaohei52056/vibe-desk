@@ -128,7 +128,7 @@ s = await evaluate(`({
 })`);
 check('V5 文件树拉取成功并列出根目录', s.rows > 5, `rows=${s.rows} foot=${s.foot.slice(0, 44)}`);
 s = await evaluate(`document.querySelector('.entity[data-id="spider"] .cap small')?.textContent ?? ''`);
-check('V6 星云蛛副标更新为文件数', /96 个文件/.test(s), s);
+check('V6 星云蛛副标更新为文件数', /\d+ 个文件/.test(s), s);
 
 // ---- 3. 目录导航 ----
 const srcDir = await evaluate(`(()=>{

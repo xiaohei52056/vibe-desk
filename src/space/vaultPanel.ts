@@ -8,7 +8,7 @@
  * 换仓库：右上 ⚙ 填 用户名/仓库名/分支，存后端 meta 表。
  */
 import {
-  agoLabel, cachedTree, downloadFile, fetchTree, kindOf, loadCfg, rawUrl, saveCfg, sizeLabel, zipUrl,
+  agoLabel, cachedTree, contentErrorText, fetchContent, fetchTree, kindOf, loadCfg, saveCfg, sizeLabel, zipUrl,
   type VaultConfig, type VaultEntry, type VaultTree
 } from './vault';
 import { mdLite } from '../ui/mdLite';
@@ -212,10 +212,18 @@ export function mountVaultPanel(): VaultPanel {
     const name = path.split('/').pop() ?? path;
     say(`下载中 · ${name}`);
     try {
-      await downloadFile(rawUrl(cfg, path), name);
+      const blob = await fetchContent(cfg, path, true) as Blob;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
       say(`已下载 · ${name}`);
-    } catch {
-      say(`下载失败 · ${name}（可直接新标签打开 raw 地址）`);
+    } catch (err) {
+      say(contentErrorText(err, name));
     }
   }
 
@@ -227,22 +235,22 @@ export function mountVaultPanel(): VaultPanel {
     if (k === 'pdf') {
       say('打开 pdf 中…');
       try {
-        const res = await fetch(rawUrl(cfg, r.path));
-        if (!res.ok) throw new Error();
-        const url = URL.createObjectURL(await res.blob());
+        const blob = await fetchContent(cfg, r.path, true) as Blob;
+        const url = URL.createObjectURL(blob);
         window.open(url, '_blank', 'noopener,noreferrer');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
         say('pdf 已在新标签打开');
-      } catch { say('pdf 打不开，试试 ↓ 直接下载'); }
+      } catch (err) { say(contentErrorText(err, r.name)); }
       return;
     }
     spin(true);
     say('加载内容…');
     try {
-      const res = await fetch(rawUrl(cfg, r.path));
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      if (k === 'image') {
+      const wantBlob = k === 'image';
+      const content = await fetchContent(cfg, r.path, wantBlob);
+      if (wantBlob) {
         releaseUrl();
-        objectUrl = URL.createObjectURL(await res.blob());
+        objectUrl = URL.createObjectURL(content as Blob);
         view = 'image';
         body.textContent = '';
         const img = document.createElement('img');
@@ -254,7 +262,7 @@ export function mountVaultPanel(): VaultPanel {
         say(`${r.name} · ${sizeLabel(r.size)}`);
         return;
       }
-      const text = await res.text();
+      const text = content as string;
       if (k === 'md') {
         view = 'md';
         body.textContent = '';
@@ -273,8 +281,8 @@ export function mountVaultPanel(): VaultPanel {
       renderCrumb();
       body.scrollTop = 0;
       say(`${r.name} · ${sizeLabel(r.size)}`);
-    } catch {
-      say('内容加载失败 · 检查网络后重试');
+    } catch (err) {
+      say(contentErrorText(err, r.name));
     } finally {
       spin(false);
     }
