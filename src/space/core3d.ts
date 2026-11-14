@@ -43,7 +43,7 @@ const PRESET: Record<SceneName, Preset> = {
   // 学习星系：只留迷你星系与光丝。轨道环 / 刻度弧 / 文字带全部退场（ring=0）——
   // 用户裁定：模块详情视角里的线条环是噪音，背景交给星云与星空
   study: { scale: 0.46, dy: 0, ring: 0.00, core: 0.00, coreScale: 0.95 },
-  // 代码星系：同上，暖一点
+  // 项目星系：同上，暖一点
   code: { scale: 0.50, dy: 0, ring: 0.00, core: 0.00, coreScale: 1.00 }
 };
 
@@ -399,7 +399,7 @@ export class Core3D {
       c.font = '500 26px "PingFang SC","Microsoft YaHei",sans-serif';
       c.fillStyle = 'rgba(201,160,99,.85)';
       c.textBaseline = 'middle';
-      const words = ['学习星系', '代码星系', '坐标冻结', '光学景深', '光丝权重', '该回看', '决策日志'];
+      const words = ['学习星系', '项目星系', '坐标冻结', '光学景深', '光丝权重', '该回看', '决策日志'];
       let x = 40;
       let k = 0;
       while (x < W - 120) {

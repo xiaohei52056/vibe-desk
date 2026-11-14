@@ -21,6 +21,7 @@ import { initEntityRows } from './storage/entityData';
 import { repairStorage } from './storage/db';
 import { loadView, rememberView } from './core/session';
 import { MOD_KEY } from './ui/platform';
+import { mountProjectLinks, relatedProjectIds, type ProjectLinksLayer } from './space/projectLinks';
 
 const stage = document.getElementById('stage');
 const world = document.getElementById('world');
@@ -40,17 +41,35 @@ document.body.classList.add('space3d');
 new Camera(stage);
 
 let stationRef: Station | null = null;
+let projectLayer: ProjectLinksLayer | null = null;
 const entities = new Entities(entitiesEl, labelsEl, {
   activate: (id) => { activateEntity(id); },
   focus: (id) => {
     const s = getState();
-    if (!id) { entities.setFocus(null); setState({ focus: null }); return; }
+    if (!id) {
+      entities.setFocus(null);
+      entities.setRelated(new Set());
+      projectLayer?.setFocus(null);
+      setState({ focus: null });
+      return;
+    }
     const found = findEntity(id);
-    entities.setFocus(id, found?.e);
+    // 项目星系：悬停时把共享标签的项目一起点亮，光丝同步高亮
+    const inProjects = s.scene === 'code';
+    // 项目星自带标签，悬停提示气泡会和它叠成两份字 —— 这里让位给关系高亮
+    entities.setFocus(id, inProjects ? undefined : found?.e);
+    entities.setRelated(inProjects ? relatedProjectIds(id) : new Set<string>());
+    projectLayer?.setFocus(inProjects ? id : null);
     setState({ focus: id });
-    void s;
   }
 });
+
+// 项目星座光丝层：挂在 #world 里，端点每帧跟随 3D 锚定后的实体
+projectLayer = mountProjectLinks(
+  world,
+  id => entities.rect(id),
+  () => getState().scene === 'code' && !getState().station
+);
 
 stationRef = new Station(stationEl, entities);
 stationRef.onDelete = (id) => { void removeNote(id); };
@@ -168,12 +187,17 @@ async function mount3d(): Promise<void> {
       const st = getState();
       const hotId = st.station ? '' : (st.focus ?? '');
       const just = walkedKey();
-      return threads().map(([a, b]) => ({
-        a, b,
-        norm: linkNorm(linkWeight(a, b)),
-        hot: (!!hotId && (hotId === a || hotId === b)) || (just !== null && just === linkKey(a, b)),
-        dim: !!st.station
-      }));
+      return threads().map(([a, b]) => {
+        const hot = (!!hotId && (hotId === a || hotId === b))
+          || (just !== null && just === linkKey(a, b));
+        // 没被点到的光丝压到六成：星多的时候它们不该抢正文与标签
+        return {
+          a, b,
+          norm: linkNorm(linkWeight(a, b)) * (hot ? 1 : 0.6),
+          hot,
+          dim: !!st.station
+        };
+      });
     });
     playIntro();
   } catch (err) {
@@ -212,6 +236,7 @@ function rerenderEntities(): void {
   entities.render(getState().scene);
   entities.refreshLabels(llabel);
   refreshDue();
+  projectLayer?.refresh();   // 实体配置同步后，项目关系网跟着重算
 }
 
 /** 星表上那三处极细的刻度：只改 class，不重建实体 */
@@ -401,6 +426,12 @@ const palette = new Palette(paletteEl ?? document.body, {
   importData,
   pullCloud: () => { void pullCloud(); },
   pushCloud: () => { void pushCloud(); }
+});
+
+// 站体里的 #标签 是入口：点一下开命令面板按这个标签筛
+document.addEventListener('vibe:search-tag', ev => {
+  const tag = (ev as CustomEvent<string>).detail;
+  if (tag) palette.open('search', '#' + tag);
 });
 
 /** A5：关掉再开，回到上次位置 + 上次工位。截图/演示参数优先，别被记忆覆盖 */

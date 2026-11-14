@@ -16,15 +16,35 @@ import { begin, elapsed, end, growInFlight } from '../core/machine';
 import type { Entities } from '../space/entities';
 import { toast } from '../ui/toast';
 import { noteOf } from '../notes/store';
-import { countWords, excerpt, maturityOf, parseTags, relTime } from '../notes/parse';
+import { countWords, excerpt, parseTags, relTime } from '../notes/parse';
 import { answerRecall, dueList, recallQuestion, type RecallAnswer } from '../notes/review';
 import { latestOf } from '../notes/decisions';
 import { assetUrl, imagesOf } from '../notes/images';
 import type { Note } from '../storage/db';
 import { entityDetail, entityOf } from '../storage/entityData';
+import { relatedProjectIds } from '../space/projectLinks';
+import { threads } from '../notes/links';
 import { EASE_OUT, MOTION, growthOrigin, reverseMs, type Segment } from './motion';
 
 interface Box { left: number; top: number; width: number; height: number }
+
+/** 字段里可点的一小段：跳到另一颗星，或按标签搜。点它不要误触「点正文进书写态」 */
+function chip(text: string, act: () => void): HTMLAnchorElement {
+  const a = document.createElement('a');
+  a.className = 'chip-link';
+  a.href = '#';
+  a.textContent = text;
+  a.addEventListener('click', ev => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    act();
+  });
+  return a;
+}
+
+type FieldCell = string | HTMLElement;
+/** [字段名, 内容, 外链?] —— 内容可以是文字，也可以是一排可点的小标签 */
+type FieldRow = [string, FieldCell, string?];
 
 const REST =
   `left 400ms ${EASE_OUT},top 400ms ${EASE_OUT},` +
@@ -431,36 +451,79 @@ export class Station {
     const note = e.kind === 'note' ? noteOf(e.id) : undefined;
     const body = note?.body ?? '';
     set('vc-top', e.kind === 'project'
-      ? '工作站 · 代码星系 / 行星 · 观看态 VIEW'
+      ? '工作站 · 项目星系 / 行星 · 观看态 VIEW'
       : e.kind === 'gate'
         ? '工作站 · 纪念光门 / 站外入口 · 观看态 VIEW'
         : '工作站 · 学习星系 / 恒星 · 观看态 VIEW');
     set('vc-title', note?.title ?? e.label);
     set('vc-sub', note
-      ? `${maturityOf(body)} · ${countWords(body)} 字 · ${relTime(note.updatedAt)}`
+      ? `${relTime(note.updatedAt)} · ${countWords(body)} 字`
       : e.sub);
 
     const fields = document.getElementById('vc-fields');
     if (!fields) return;
     fields.textContent = '';
 
-    // 项目卡 / 光门的内容来自实体配置表（MySQL + 本地缓存），
-    // 没有配置时退回占位文案 —— 离线、旧备份都不会开天窗。
+    // 观看态字段只放「一眼能懂、且点了有用」的东西：
+    //   关联能跳到别的星、标签能按标签搜、更新是真实状态。
+    //   「生长 / 幼苗」这类黑话和「按 Tab 改」这类操作提示都从这里挪走了。
     const ent = entityOf(e.id);
     const detail = entityDetail(e.id);
 
-    const rows: [string, string, string?][] = e.kind === 'project'
-      ? [['目标', detail['goal'] || '占位 · 待填'],
-         ['当前', detail['current'] || '占位 · 待填'],
-         ['Next', detail['next'] || '占位 · 待填'],
+    const linked = threads()
+      .filter(([a, b]) => a === e.id || b === e.id)
+      .map(([a, b]) => a === e.id ? b : a)
+      .map(id => ({ id, title: noteOf(id)?.title }))
+      .filter((x): x is { id: string; title: string } => !!x.title);
+
+    const linkedBox = document.createElement('span');
+    if (linked.length) {
+      linked.slice(0, 3).forEach((x, i) => {
+        if (i) linkedBox.append('、');
+        linkedBox.appendChild(chip(x.title, () => this.open(x.id)));
+      });
+      if (linked.length > 3) linkedBox.append(` 等 ${linked.length} 篇`);
+    } else {
+      linkedBox.textContent = '写 [[笔记名]] 就能连上别的星';
+    }
+
+    const tagBox = document.createElement('span');
+    const tags = parseTags(body);
+    if (tags.length) {
+      tags.slice(0, 5).forEach(t => tagBox.appendChild(chip('#' + t, () => {
+        document.dispatchEvent(new CustomEvent('vibe:search-tag', { detail: t }));
+      })));
+    } else {
+      tagBox.textContent = '—';
+    }
+
+    const relIds = [...relatedProjectIds(e.id)];
+    const relBox = document.createElement('span');
+    if (relIds.length) {
+      relIds.slice(0, 3).forEach((id, i) => {
+        if (i) relBox.append('、');
+        relBox.appendChild(chip(entityOf(id)?.label ?? id, () => this.open(id)));
+      });
+    } else {
+      relBox.textContent = '暂时没有关联项目';
+    }
+
+    const rows: FieldRow[] = e.kind === 'project'
+      ? [['简介', detail['summary'] || '—'],
+         ['技术栈', detail['stack'] || '—'],
+         ['关联', relBox],
          ['仓库', ent?.url || '未配置', ent?.url || undefined]]
       : e.kind === 'gate'
         ? [['性质', '站外网站入口，非台内纪念内容'],
            ['URL', ent?.url || '未配置 · 待提供', ent?.url || undefined],
            ['打开', ent?.url ? '点击光门 · 新标签页' : 'URL 未配置']]
-        : [['状态', note ? maturityOf(body) : (e.kind === 'phantom' ? '虚影恒星 · 待写' : '幼苗')],
-           ['标签', parseTags(body).length ? parseTags(body).map(t => '#' + t).join(' ') : '—'],
-           ['Next', note && body.trim() ? '点正文或 Tab · 直接改' : '点正文写第一句']];
+        : [['关联', linkedBox],
+           ['标签', tagBox],
+           // 副标题已给了「3 天前」这种相对时间，这里补一个确切日期才不重复
+           ['改动', note ? new Date(note.updatedAt).toLocaleString('zh-CN', {
+             year: 'numeric', month: '2-digit', day: '2-digit',
+             hour: '2-digit', minute: '2-digit', hour12: false
+           }) : '—']];
 
     rows.forEach(([k, v, href], i) => {
       const d = document.createElement('div');
@@ -473,11 +536,13 @@ export class Station {
         a.href = href;
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
-        a.textContent = v;
+        a.textContent = String(v);
         a.title = href;
         span.appendChild(a);
-      } else {
+      } else if (typeof v === 'string') {
         span.textContent = v;
+      } else {
+        span.appendChild(v);
       }
       d.append(b, span);
       fields.appendChild(d);
@@ -503,13 +568,15 @@ export class Station {
 
     this.fillRecall(e, note);
 
-    set('vc-readme-h', e.kind === 'gate' ? '边界说明 / SCOPE' : 'README · 摘录');
+    set('vc-readme-h', e.kind === 'gate'
+      ? '边界说明 / SCOPE'
+      : e.kind === 'project' ? '项目说明 / ABOUT' : '正文 · 摘录');
     set('vc-readme-p', e.kind === 'gate'
       ? (detail['note'] || '纪念册只是站外入口：台内只保留一颗恒定亮度的深空天体与站外链接，不存在第二份纪念内容。')
       : e.kind === 'project'
-        ? '项目卡固定三字段「目标 / 当前 / Next」，不展示指标数字、完成率或提交热力图。'
+        ? (detail['summary'] || '项目卡只放一句话、技术栈与关联，不做指标数字或提交热力图。')
         : note
-          ? (body.trim() ? excerpt(body) : '还没有正文。点正文或按 Tab 写第一句 —— 不用先想标题。')
+          ? (body.trim() ? excerpt(body, 140) : '还没有正文。点正文或按 Tab 写第一句 —— 不用先想标题。')
           : '笔记以恒星呈现，关联以光丝呈现；坐标一经分配即固定，亮度只在 ±15% 内波动，旧笔记永不降到不可见。');
     // 大标题已经写了篇名，顶栏别再重复一次；这里放「我在哪」
     set('wc-name', e.kind === 'note' ? '学习星系 / 恒星' : e.label);

@@ -72,7 +72,7 @@ export class Palette {
       { label: '新建笔记', meta: '创建', run: () => this.hooks.createNote() },
       { label: '学习星系', meta: '飞向', run: () => this.hooks.goScene('study') },
       { label: '银河层', meta: '回到', run: () => this.hooks.goScene('galaxy') },
-      { label: '代码星系', meta: '飞向', run: () => this.hooks.goScene('code') },
+      { label: '项目星系', meta: '飞向', run: () => this.hooks.goScene('code') },
       { label: '收站', meta: 'Esc', run: () => this.hooks.closeStation() },
       { label: '导出全部数据', meta: 'JSON', run: () => this.hooks.exportData() },
       { label: '导入数据（替换）', meta: 'JSON', run: () => this.hooks.importData() },

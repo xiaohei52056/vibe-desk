@@ -118,6 +118,29 @@ body.space3d .entity[data-kind="spider"] .dot::before{display:none}
   .entity[data-kind="galaxy"] .hit{width:46vmin;height:46vmin}
 }
 
+/* ---------- 项目星座：共享标签的项目之间连一条会呼吸的光丝 ---------- */
+.proj-links{position:absolute;inset:0;width:100%;height:100%;
+  pointer-events:none;z-index:0;overflow:visible}
+.proj-links line{stroke:rgba(186,166,225,.38);stroke-width:1;
+  transition:stroke 240ms ease,opacity 240ms ease}
+.proj-links line.hot{stroke:rgba(232,195,126,.85)}
+.proj-links line.cold{opacity:.16}
+.proj-links circle{fill:#E8C37E;opacity:.55}
+.proj-links circle.hot{opacity:1;filter:drop-shadow(0 0 5px rgba(232,195,126,.9))}
+/* 共享标签写在线上：说明这两个项目为什么被连起来，而不是三条无来由的线 */
+.proj-links text.lab{font-family:var(--mono);font-size:10px;letter-spacing:.10em;
+  text-anchor:middle;fill:rgba(186,166,225,.72);
+  paint-order:stroke;stroke:#0C111B;stroke-width:3px;stroke-linejoin:round;
+  pointer-events:none;transition:fill 240ms ease,opacity 240ms ease}
+.proj-links text.lab.hot{fill:#E8C37E}
+.proj-links text.lab.cold{opacity:.22}
+/* 悬停一颗，相关项目一起亮，其余退到背景里 */
+.entity{transition:opacity 260ms ease}
+#entities.has-rel .entity:not(.focused):not(.related){opacity:.3}
+.entity.related .cap b{opacity:1;color:#E8C37E}
+.entity.related .dot{
+  box-shadow:0 0 0 1px rgba(232,195,126,.5),0 0 0 12px rgba(232,195,126,.08)}
+
 /* ---------- 该回看 · 星表上那一道刻度 ----------
    从星点上方轻轻扫过的一段细弧：不闪、不转、不是红点、不挂数字。
    它说的是「这颗星有点暗了」，不是「你有 3 项待办」。
@@ -135,9 +158,13 @@ body.space3d .entity[data-kind="spider"] .dot::before{display:none}
 
 .entity .cap{position:absolute;left:30px;top:50%;transform:translateY(-50%);
   white-space:nowrap;pointer-events:none}
+/* 右半边的星：标签改挂左侧，标题不再一路向右叠到隔壁星云上 */
+.entity[data-side="left"] .cap{left:auto;right:30px;text-align:right}
 .entity[data-kind="core"] .cap{left:104px}
 /* 星表文字也一并提亮一档：压在星云上的小字要读得清，才不会像装饰噪点 */
-.entity .cap b{font-weight:400;font-size:var(--fs-small);letter-spacing:.04em;color:var(--warm);
+.entity .cap b{display:inline-block;max-width:min(24vw,220px);overflow:hidden;
+  text-overflow:ellipsis;vertical-align:bottom;
+  font-weight:400;font-size:var(--fs-small);letter-spacing:.04em;color:var(--warm);
   opacity:.76;transition:opacity 260ms;
   text-shadow:0 1px 6px rgba(4,8,14,.9),0 0 12px rgba(4,8,14,.75)}
 .entity .cap small{display:block;font-family:var(--mono);font-size:var(--fs-micro);color:#8FA0B8;

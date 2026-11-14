@@ -592,7 +592,9 @@ export class ModuleNebulae {
       holder.position.copy(this.worldAt(e.x, e.y, aspect, this.tmpW));
     }
     for (const [sc, map] of this.minis) {
-      for (const e of SCENES[sc]) {
+      // 必须用 entitiesOf：SCENES 里只有设计稿的静态七星，
+      // 新笔记的迷你星系在 relayout（窗口变化 / 切场景）时也要跟着对齐。
+      for (const e of entitiesOf(sc)) {
         const holder = map.get(e.id);
         if (holder) holder.position.copy(this.worldAt(e.x, e.y, aspect, this.tmpW));
       }

@@ -58,6 +58,9 @@
 .vc-fields a{color:#E8C37E;text-decoration:none;border-bottom:1px solid rgba(232,195,126,.35);
   word-break:break-all;cursor:pointer}
 .vc-fields a:hover{border-bottom-color:#E8C37E}
+/* 关联笔记 / 标签 / 关联项目：一排可点的小 chip，点它不会误进书写态 */
+.vc-fields .chip-link{display:inline-block;margin-right:10px;white-space:nowrap}
+.vc-fields .chip-link:hover{color:#FFE3A8}
 .vc-readme{margin-top:auto;border-top:1px solid rgba(90,106,130,.35);padding-top:16px}
 .vc-readme h4{font-family:var(--mono);font-size:var(--fs-micro);font-weight:400;color:var(--ui);
   letter-spacing:.08em;margin-bottom:10px}

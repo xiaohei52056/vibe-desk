@@ -55,6 +55,8 @@ export class Entities {
     el.dataset['id'] = e.id;
     el.dataset['kind'] = e.kind;
     el.dataset['tone'] = e.tone;
+    // 靠近右边缘的星把标签放到左侧，避免长标题一律向右伸、糊成一团
+    el.dataset['side'] = e.x > 0.60 ? 'left' : 'right';
     if (e.main) el.dataset['main'] = '1';
     el.style.left = `${e.x * 100}%`;
     el.style.top = `${e.y * 100}%`;
@@ -65,6 +67,7 @@ export class Entities {
     cap.className = 'cap';
     const b = document.createElement('b');
     b.textContent = e.label;
+    b.title = e.label;   // 过长被省略时，悬停仍能看到全名
     const small = document.createElement('small');
     small.textContent = e.sub;
     cap.append(b, small);
@@ -157,5 +160,14 @@ export class Entities {
     this.gaze.classList.add('show');
     clearTimeout(this.focusTimer);
     this.focusTimer = window.setTimeout(() => this.gaze.classList.remove('show'), 3000);
+  }
+
+  /** 项目星座：悬停一颗星时，与它共享标签的项目一起亮，其余压暗 */
+  setRelated(ids: ReadonlySet<string>): void {
+    this.root.classList.toggle('has-rel', ids.size > 0);
+    this.root.querySelectorAll<HTMLElement>('.entity').forEach(n => {
+      const id = n.dataset['id'];
+      n.classList.toggle('related', !!id && ids.has(id));
+    });
   }
 }

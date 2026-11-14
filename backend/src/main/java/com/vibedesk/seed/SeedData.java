@@ -343,13 +343,13 @@ public class SeedData {
                         "{\"note\":\"纪念册只是站外入口：台内只保留一颗恒定亮度的深空天体与站外链接，不存在第二份纪念内容。\"}"),
                 siteEntity("p1", "project", t, "sweet-memory", "Vue · 恋爱纪念册",
                         "https://github.com/xiaohei52056/sweet-memory",
-                        "{\"goal\":\"把两个人的时间放进一片星河\",\"current\":\"3D 星河相册已上线，按时间轴翻看\",\"next\":\"补一段年度回望，再加一条时间轴\"}"),
+                        "{\"summary\":\"把两个人的时间放进一片星河的 3D 相册\",\"stack\":\"Vue 3 · Three.js\",\"tags\":[\"Web\",\"前端\",\"3D\",\"本地优先\"],\"goal\":\"把两个人的时间放进一片星河\",\"current\":\"3D 星河相册已上线，按时间轴翻看\",\"next\":\"补一段年度回望，再加一条时间轴\"}"),
                 siteEntity("p2", "project", t, "my-blog", "Java · 个人博客",
                         "https://github.com/xiaohei52056/my-blog",
-                        "{\"goal\":\"写下来的才算想清楚\",\"current\":\"Java 后端 + 文章模块在跑\",\"next\":\"把本地优先的同步实践整理成一篇\"}"),
+                        "{\"summary\":\"记录 Java Web 与学习笔记的个人博客\",\"stack\":\"Java · Spring Boot · MySQL\",\"tags\":[\"Web\",\"后端\",\"Java\",\"写作\"],\"goal\":\"写下来的才算想清楚\",\"current\":\"Java 后端 + 文章模块在跑\",\"next\":\"把本地优先的同步实践整理成一篇\"}"),
                 siteEntity("p3", "project", t, "skill-evidence-lint", "Python · Skill 证据检查",
                         "https://github.com/xiaohei52056/skill-evidence-lint",
-                        "{\"goal\":\"让 Skill 的可量化声明都有证据链接\",\"current\":\"纯本地静态检查，不联网、不执行 Skill\",\"next\":\"覆盖更多声明类型与路径校验\"}")
+                        "{\"summary\":\"给 AI Skill 的可量化声明做本地证据检查\",\"stack\":\"Python · 静态分析\",\"tags\":[\"工具\",\"Python\",\"写作\",\"本地优先\"],\"goal\":\"让 Skill 的可量化声明都有证据链接\",\"current\":\"纯本地静态检查，不联网、不执行 Skill\",\"next\":\"覆盖更多声明类型与路径校验\"}")
         );
 
         return new SeedBundle(notes, links, review, decisions, entities);

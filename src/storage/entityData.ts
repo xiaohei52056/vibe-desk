@@ -1,5 +1,5 @@
 /**
- * 站点实体配置：纪念册光门、代码星系项目卡。
+ * 站点实体配置：纪念册光门、项目星系项目卡。
  *
  * 分工很明确：坐标是 coords.ts 的冻结契约（永不变），这里只存「写什么」——
  * 名字、副标题、站外链接、卡片三字段。
@@ -29,6 +29,16 @@ export function entityDetail(id: string): Record<string, string> {
 function apply(list: readonly EntityRow[]): void {
   rows = Object.freeze([...list]);
   setEntityOverrides(rows);
+}
+
+/** 项目的主题标签：决定它和谁连线。坏数据一律当空数组 */
+export function entityTags(id: string): string[] {
+  try {
+    const raw = JSON.parse(entityOf(id)?.detail ?? '{}') as { tags?: unknown };
+    if (Array.isArray(raw.tags)) return raw.tags.filter((x): x is string => typeof x === 'string');
+    if (typeof raw.tags === 'string') return raw.tags.split(/[,，\s]+/).filter(Boolean);
+  } catch { /* 忽略 */ }
+  return [];
 }
 
 /** 写入本地并立即生效 */

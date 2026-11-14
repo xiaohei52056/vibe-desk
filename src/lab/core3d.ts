@@ -364,7 +364,7 @@ spin.add(new LineLoop(circleGeo(R_CYL, -0.085, 256), ringMat(0.34, 'ice')));
   c.font = '500 26px "PingFang SC","Microsoft YaHei",sans-serif';
   c.fillStyle = 'rgba(201,160,99,.85)';
   c.textBaseline = 'middle';
-  const words = ['学习星系', '代码星系', '坐标冻结', '光学景深', '光丝权重', '该回看', '决策日志'];
+  const words = ['学习星系', '项目星系', '坐标冻结', '光学景深', '光丝权重', '该回看', '决策日志'];
   let x = 40;
   let k = 0;
   while (x < W - 120) {

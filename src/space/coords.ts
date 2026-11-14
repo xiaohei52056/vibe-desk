@@ -11,7 +11,7 @@ const frozen = (list: EntityDef[]): readonly EntityDef[] =>
 
 const GALAXY = frozen([
   { id: 'study',  kind: 'galaxy',  tone: 'study', x: .22, y: .31, label: '学习星系', sub: 'Study Galaxy · Enter 进入', scene: 'study' },
-  { id: 'code',   kind: 'galaxy',  tone: 'code',  x: .73, y: .70, label: '代码星系', sub: 'Code Galaxy · Enter 进入',  scene: 'code' },
+  { id: 'code',   kind: 'galaxy',  tone: 'code',  x: .73, y: .70, label: '项目星系', sub: 'Project Galaxy · Enter 进入',  scene: 'code' },
   { id: 'core',   kind: 'core',    tone: 'core',  x: .50, y: .47, label: 'AI 星核',  sub: '预留位 · v2 接入' },
   { id: 'gate',   kind: 'gate',    tone: 'gate',  x: .86, y: .19, label: '纪念册',   sub: '站外入口 · URL 未配置' },
   { id: 'spider', kind: 'spider',  tone: '',      x: .36, y: .65, label: '星云蛛',   sub: '注意力化身' }
@@ -37,23 +37,53 @@ export const SCENES: Record<SceneName, readonly EntityDef[]> =
   Object.freeze({ galaxy: GALAXY, study: STUDY, code: CODE });
 
 export const SCENE_NAME: Record<SceneName, string> =
-  Object.freeze({ galaxy: '银河层', study: '学习星系', code: '代码星系' });
+  Object.freeze({ galaxy: '银河层', study: '学习星系', code: '项目星系' });
 
 /* ============================================================
-   新笔记的坐标
-   —— 七颗种子恒星的位置是设计稿定的，写死在上面。
-   —— 之后新建的笔记不在设计稿里，但坐标契约（C1）照样要守：
-      位置由 id 决定、一经分配永不变、绝不因为「谁的标题更长」而重排。
-   —— 做法是右下角一块固定的网格（4×4），按 id 序号取格；
-      冲突就顺延一格。序号来自 id 本身，所以重开页面也落在同一格。
+   新笔记的坐标（v4 布局）
+   —— 七颗种子恒星的位置是设计稿定的，写死不动。
+   —— 新笔记不再挤在右下角网格里：用低差异序列（Halton）在整幅画面
+      铺候选点，避开七星与彼此的最小距离，按 id 顺序依次落位。
+   —— 分配结果写进 localStorage：一经分配永不变（真正的坐标冻结）。
+      后续新增只往后取空位，已有星绝不会因为「谁的标题更长」而重排。
    ============================================================ */
 
-const SLOTS: readonly (readonly [number, number])[] = Object.freeze([
-  [.62, .48], [.69, .48], [.76, .48], [.83, .48],
-  [.62, .60], [.69, .60], [.76, .60], [.83, .60],
-  [.62, .72], [.69, .72], [.76, .72], [.83, .72],
-  [.62, .84], [.69, .84], [.76, .84], [.83, .84]
-].map(s => Object.freeze(s) as unknown as readonly [number, number]));
+const SLOT_KEY = 'vibedesk.entitySlots';
+type SlotMap = Record<string, { x: number; y: number }>;
+
+const readSlots = (): SlotMap => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SLOT_KEY) ?? '{}') as unknown;
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw as SlotMap;
+  } catch { /* 坏数据当空 */ }
+  return {};
+};
+const writeSlots = (m: SlotMap): void => {
+  try { localStorage.setItem(SLOT_KEY, JSON.stringify(m)); } catch { /* 隐私模式忽略 */ }
+};
+
+const halton = (i: number, b: number): number => {
+  let f = 1, r = 0;
+  while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); }
+  return r;
+};
+
+const SEED_POINTS: readonly (readonly [number, number])[] = STUDY.map(e => [e.x, e.y]);
+/** 横向按视觉比例加权：屏幕更宽，横向同样数值的间隔看起来更近 */
+const spaced = (a: readonly number[], b: readonly number[]): number =>
+  Math.hypot((a[0]! - b[0]!) * 1.25, a[1]! - b[1]!);
+
+const CANDIDATES: readonly (readonly [number, number])[] = (() => {
+  const pts: [number, number][] = [];
+  for (let i = 8; i < 600 && pts.length < 48; i++) {
+    const x = .10 + halton(i, 2) * .80;
+    const y = .11 + halton(i, 3) * .76;
+    if (SEED_POINTS.some(p => spaced([x, y], p) < .145)) continue;
+    if (pts.some(p => spaced([x, y], p) < .135)) continue;
+    pts.push([x, y]);
+  }
+  return Object.freeze(pts);
+})();
 
 const BASE_IDS = new Set(STUDY.map(e => e.id));
 
@@ -89,29 +119,13 @@ function withOverride(e: EntityDef): EntityDef {
   });
 }
 
-function allocSlot(id: string, used: Set<string>): { x: number; y: number } {
-  const n = numOf(id);
-  const start = Number.isFinite(n) ? Math.max(0, n - 8) % SLOTS.length : 0;
-  for (let i = 0; i < SLOTS.length; i++) {
-    const slot = SLOTS[(start + i) % SLOTS.length]!;
-    const key = `${slot[0].toFixed(3)},${slot[1].toFixed(3)}`;
-    if (used.has(key)) continue;
-    used.add(key);
-    return { x: slot[0], y: slot[1] };
-  }
-  // 第十六颗之后：在起始格外圈错开。仍然只由 id 决定，不会漂移
-  const base = SLOTS[start]!;
-  const ring = 1 + Math.floor((Number.isFinite(n) ? n - 8 : 0) / SLOTS.length);
-  return { x: Math.min(.90, base[0] + .008 * ring), y: Math.min(.92, base[1] + .010 * ring) };
-}
-
 /**
  * 把「不只是种子」的笔记登记成恒星。
- * 幂等：已经分配过的实体原样保留，只更新标签文字 —— 位置绝不重算。
+ * 幂等：位置优先取 localStorage 里已冻结的分配，只有新 id 才取候选点。
  */
 export function setExtraNotes(items: readonly { id: string; title: string }[]): void {
-  const prev = new Map(extra.map(e => [e.id, e]));
-  const used = new Set(extra.map(e => `${e.x.toFixed(3)},${e.y.toFixed(3)}`));
+  const slots = readSlots();
+  const taken = new Set(Object.values(slots).map(p => `${p.x.toFixed(3)},${p.y.toFixed(3)}`));
   const sorted = [...items]
     .filter(it => !BASE_IDS.has(it.id))
     .sort((a, b) => {
@@ -121,18 +135,24 @@ export function setExtraNotes(items: readonly { id: string; title: string }[]): 
     });
 
   const out: EntityDef[] = [];
+  let changed = false;
   for (const it of sorted) {
-    const cur = prev.get(it.id);
-    if (cur) {
-      out.push(Object.freeze({ ...cur, label: it.title || cur.label }));
-      continue;
+    let pos = slots[it.id];
+    if (!pos) {
+      const cand = CANDIDATES.find(([x, y]) => !taken.has(`${x.toFixed(3)},${y.toFixed(3)}`));
+      pos = cand
+        ? { x: cand[0], y: cand[1] }
+        : { x: .88, y: .14 + (out.length % 10) * .07 };  // 48 个之后才可能走到
+      slots[it.id] = pos;
+      taken.add(`${pos.x.toFixed(3)},${pos.y.toFixed(3)}`);
+      changed = true;
     }
-    const pos = allocSlot(it.id, used);
     out.push(Object.freeze({
       id: it.id, kind: 'note' as const, tone: 'study',
       x: pos.x, y: pos.y, label: it.title || '无标题', sub: '笔记'
     }));
   }
+  if (changed) writeSlots(slots);
   extra = Object.freeze(out);
   studyList = out.length ? Object.freeze([...STUDY, ...out]) : STUDY;
 }
