@@ -18,6 +18,7 @@ import { RunnerPanel } from './sandbox/panel';
 import { applyBundle, buildBundle, downloadBundle, parseBundle } from './storage/transfer';
 import { autoSyncFromCloud, pullFromCloud, pushToCloud } from './storage/remote';
 import { initEntityRows } from './storage/entityData';
+import { repairStorage } from './storage/db';
 import { loadView, rememberView } from './core/session';
 import { MOD_KEY } from './ui/platform';
 
@@ -453,8 +454,16 @@ void initNotes().then(async report => {
     }, 15000);
   }
   void restoreView();
-}).catch(err => {
+}).catch(async err => {
   console.warn('[notes] 存储不可用，退回只读', err);
+  // 热更新造成的「版本号已升、表没建全」：自愈一次后自动重载，
+  // 不让用户手动清浏览器数据。sessionStorage 保证只重载一次，不会循环。
+  if (err instanceof DOMException && err.name === 'NotFoundError'
+      && !sessionStorage.getItem('vibedesk.repairReload')) {
+    sessionStorage.setItem('vibedesk.repairReload', '1');
+    try { await repairStorage(); } catch { /* 重载后 openDb 仍会自愈 */ }
+    location.reload();
+  }
 });
 
 // 回看答完：只退掉星表上那道刻度，不做任何「已记录」提示（C6）

@@ -64,45 +64,116 @@ export type StoreName = (typeof STORES)[number];
 const LEGACY_KEY = 'vibe-desk-v12';
 const MIGRATED = 'migratedAt';
 
+const DB_VERSION_KEY = 'vibedesk.dbVersion';
+let knownVersion = 0;
 let dbp: Promise<IDBDatabase> | null = null;
 
-export function openDb(): Promise<IDBDatabase> {
-  if (dbp) return dbp;
-  dbp = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains('notes')) {
-        const s = db.createObjectStore('notes', { keyPath: 'id' });
-        s.createIndex('updatedAt', 'updatedAt');
-      }
-      if (!db.objectStoreNames.contains('links')) {
-        const s = db.createObjectStore('links', { keyPath: 'key' });
-        s.createIndex('a', 'a');
-        s.createIndex('b', 'b');
-      }
-      if (!db.objectStoreNames.contains('review')) {
-        db.createObjectStore('review', { keyPath: 'noteId' });
-      }
-      if (!db.objectStoreNames.contains('decisions')) {
-        const s = db.createObjectStore('decisions', { keyPath: 'id' });
-        s.createIndex('noteId', 'noteId');
-      }
-      if (!db.objectStoreNames.contains('assets')) {
-        const s = db.createObjectStore('assets', { keyPath: 'id' });
-        s.createIndex('at', 'at');
-      }
-      if (!db.objectStoreNames.contains('meta')) {
-        db.createObjectStore('meta', { keyPath: 'k' });
-      }
-      if (!db.objectStoreNames.contains('entities')) {
-        db.createObjectStore('entities', { keyPath: 'id' });
-      }
+const storedVersion = (): number => {
+  try { return Number(localStorage.getItem(DB_VERSION_KEY) ?? 0) || 0; } catch { return 0; }
+};
+const rememberVersion = (v: number): void => {
+  try { if (v > storedVersion()) localStorage.setItem(DB_VERSION_KEY, String(v)); } catch { /* 隐私模式 */ }
+};
+/** 不指定版本探一次真实版本（localStorage 被清、或多标签页各自升级时用） */
+const probeVersion = (): Promise<number> => new Promise(resolve => {
+  const req = indexedDB.open(DB_NAME);
+  req.onsuccess = () => { const v = req.result.version; req.result.close(); resolve(v); };
+  req.onerror = () => resolve(0);
+});
+
+/** 升级回调：缺哪张表建哪张，重复执行安全；只加表，绝不动已有数据 */
+function createMissing(db: IDBDatabase): void {
+  if (!db.objectStoreNames.contains('notes')) {
+    const s = db.createObjectStore('notes', { keyPath: 'id' });
+    s.createIndex('updatedAt', 'updatedAt');
+  }
+  if (!db.objectStoreNames.contains('links')) {
+    const s = db.createObjectStore('links', { keyPath: 'key' });
+    s.createIndex('a', 'a');
+    s.createIndex('b', 'b');
+  }
+  if (!db.objectStoreNames.contains('review')) {
+    db.createObjectStore('review', { keyPath: 'noteId' });
+  }
+  if (!db.objectStoreNames.contains('decisions')) {
+    const s = db.createObjectStore('decisions', { keyPath: 'id' });
+    s.createIndex('noteId', 'noteId');
+  }
+  if (!db.objectStoreNames.contains('assets')) {
+    const s = db.createObjectStore('assets', { keyPath: 'id' });
+    s.createIndex('at', 'at');
+  }
+  if (!db.objectStoreNames.contains('meta')) {
+    db.createObjectStore('meta', { keyPath: 'k' });
+  }
+  if (!db.objectStoreNames.contains('entities')) {
+    db.createObjectStore('entities', { keyPath: 'id' });
+  }
+}
+
+function hasAllStores(db: IDBDatabase): boolean {
+  return STORES.every(s => db.objectStoreNames.contains(s));
+}
+
+/**
+ * 打开（并在必要时修复）数据库。
+ *
+ * 坑在于：版本号可能已经升上去了，表却没建全 —— 热更新中途加载到
+ * 「版本号是 3、建表代码还差一段」的中间态就会造成这种库。
+ * 单纯 open(3) 不会再触发 onupgradeneeded，于是 transaction('entities')
+ * 直接抛 NotFoundError。这里在 onsuccess 里再校验一次，
+ * 缺表就 close 并升一级重开，强制补建，用户数据一行不删。
+ */
+function doOpen(version: number): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, version);
+    req.onupgradeneeded = () => createMissing(req.result);
+    req.onblocked = () => {
+      console.warn('[db] 版本升级被其它标签页占用 · 关掉旧标签页即会自动继续');
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error ?? new Error('indexedDB open failed'));
+    req.onsuccess = () => {
+      const db = req.result;
+      knownVersion = Math.max(knownVersion, db.version);
+      rememberVersion(db.version);
+      // 别的标签页要升版本时主动让路，避免互相卡死
+      db.onversionchange = () => { db.close(); dbp = null; };
+      if (!hasAllStores(db)) {
+        const next = db.version + 1;
+        db.close();
+        resolve(doOpen(next));
+        return;
+      }
+      resolve(db);
+    };
+    req.onerror = () => {
+      dbp = null;
+      const err = req.error;
+      // 库的实际版本比请求的高（上次自愈升过级、或别的标签页升过）：
+      // 探到真实版本后按它重开，绝不降级、绝不删库
+      if (err?.name === 'VersionError') {
+        void probeVersion().then(v => {
+          knownVersion = Math.max(knownVersion, v, version);
+          resolve(doOpen(knownVersion));
+        });
+        return;
+      }
+      reject(err ?? new Error('indexedDB open failed'));
+    };
   });
+}
+
+export function openDb(): Promise<IDBDatabase> {
+  if (!dbp) dbp = doOpen(Math.max(DB_VERSION, knownVersion, storedVersion()));
   return dbp;
+}
+
+/** 强制重连：存储结构异常时丢弃缓存连接，按更高版本重开补齐 */
+export async function repairStorage(): Promise<void> {
+  const db = await openDb().catch(() => null);
+  const base = Math.max(db?.version ?? 0, knownVersion, storedVersion(), DB_VERSION);
+  db?.close();
+  dbp = null;
+  await doOpen(base + 1);
 }
 
 function tx<T>(store: StoreName, mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
