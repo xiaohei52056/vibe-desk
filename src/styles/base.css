@@ -177,11 +177,12 @@ body.space3d .entity[data-kind="spider"] .dot::before{display:none}
 .tt-list{overflow:auto;max-height:210px;padding:2px 0}
 .tt-row{display:flex;align-items:center;gap:8px;padding:5px 2px;
   border-bottom:1px solid rgba(255,255,255,.05)}
+.tt-row:hover{background:rgba(255,255,255,.045)}
 .tt-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;color:#C9D6EE}
-.tt-cut{flex:none;width:20px;height:20px;line-height:18px;text-align:center;
+.tt-cut{flex:none;width:22px;height:22px;line-height:20px;text-align:center;
   background:transparent;border:1px solid rgba(232,160,107,.4);border-radius:3px;
-  color:#E8A06B;font-size:10px;cursor:pointer;padding:0}
+  color:#E8A06B;font-size:11px;cursor:pointer;padding:0}
 .tt-cut:hover{background:rgba(232,160,107,.18);border-color:#E8A06B;color:#FFC79E}
 .tt-empty{color:#8FA0B8;font-size:var(--fs-micro);line-height:1.7;padding:8px 2px}
 

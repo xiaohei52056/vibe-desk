@@ -11,6 +11,8 @@ export interface TieTrayHooks {
   tiesOf(id: string): string[];
   labelOf(id: string): string;
   onCut(from: string, to: string, la: string, lb: string): Promise<void>;
+  /** 悬停某一行时点亮对端那颗星；null = 清掉高亮 */
+  onHighlight(id: string | null): void;
 }
 
 export interface TieTray {
@@ -49,6 +51,8 @@ export function mountTieTray(hooks: TieTrayHooks): TieTray {
   let open = false;
 
   const build = (): void => {
+    // 列表重建后旧行已不在，mouseleave 不会再触发：先清掉可能残留的高亮
+    hooks.onHighlight(null);
     list.textContent = '';
     const ids = hooks.tiesOf(from).sort((a, b) =>
       hooks.labelOf(a).localeCompare(hooks.labelOf(b), 'zh-CN'));
@@ -65,6 +69,9 @@ export function mountTieTray(hooks: TieTrayHooks): TieTray {
       cut.className = 'tt-cut';
       cut.textContent = '✕';
       cut.title = `断开与「${name.textContent}」的连线`;
+      // 悬停一行 = 在星图里点亮线的另一端，看准了再剪
+      row.addEventListener('mouseenter', () => hooks.onHighlight(id));
+      row.addEventListener('mouseleave', () => hooks.onHighlight(null));
       cut.addEventListener('click', ev => {
         ev.stopPropagation();
         void hooks.onCut(from, id, hooks.labelOf(from), name.textContent ?? id)
@@ -78,9 +85,22 @@ export function mountTieTray(hooks: TieTrayHooks): TieTray {
   const place = (x: number, y: number): void => {
     const w = 236;
     const h = Math.min(280, el.offsetHeight || 200);
-    const left = x + 22 + w > window.innerWidth - 12 ? x - w - 22 : x + 22;
-    const top = Math.min(Math.max(12, y - 16), Math.max(12, window.innerHeight - h - 12));
-    el.style.left = `${Math.max(12, left)}px`;
+    const GAP = 26;
+    // 源星的光晕圈：浮层不许盖住正在操作的星，盖住就挪到它的上/下方
+    const PAD = 38;
+    const coversStar = (left: number, top: number): boolean =>
+      left < x + PAD && left + w > x - PAD && top < y + PAD && top + h > y - PAD;
+    const fitsRight = x + GAP + w <= window.innerWidth - 12;
+    const left = Math.max(12, fitsRight ? x + GAP : x - GAP - w);
+    let top = Math.min(Math.max(12, y - 16), Math.max(12, window.innerHeight - h - 12));
+    if (coversStar(left, top)) {
+      const below = y + PAD;
+      const above = y - PAD - h;
+      top = below + h <= window.innerHeight - 12 ? below
+        : above >= 12 ? above
+        : Math.max(12, window.innerHeight - h - 12);
+    }
+    el.style.left = `${left}px`;
     el.style.top = `${top}px`;
   };
 
@@ -93,6 +113,7 @@ export function mountTieTray(hooks: TieTrayHooks): TieTray {
   function hide(): void {
     open = false;
     el.hidden = true;
+    hooks.onHighlight(null);
   }
 
   return {

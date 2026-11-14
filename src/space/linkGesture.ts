@@ -3,9 +3,11 @@
  *
  * 两种完成方式都支持：
  *   1. 按住一颗星约 0.5 秒 → 拖出一条虚线 → 落到目标星上松开；
+ *      拖出去了却没落到任何目标星（松在空白处）→ 直接取消，不留悬空的线；
  *   2. 按住后原地松手 → 进入连线态 → 再点一下目标星。
  * 目标没连过 = 连接，已经连着 = 剪断（预览线会先变成琥珀色说明）。
  * 连线态还会浮出「这颗星的线」，逐条 ✕ 剪断；剪完 4 秒内可撤销。
+ * 悬停浮层里的某一行，3D 里对应的星与光丝会单独亮起来，剪错不了。
  *
  * 站体开着的时候不启动（书写态里改正文会和这里的自动落笔打架）。
  * 关系的落库在 notes/ties.ts，动作与撤销在 tieActions.ts。
@@ -25,6 +27,10 @@ const CLICK_GUARD_MS = 400;
 /** 3D 光丝渲染层要读：连线态下把源星已有的线点亮，方便看清要剪哪条 */
 let activeLinkSource: string | null = null;
 export const linkSource = (): string | null => activeLinkSource;
+
+/** 剪线浮层 hover 某一行时记录对端 id：3D 里把「这一条」单独点亮 */
+let activeHighlight: string | null = null;
+export const linkHighlight = (): string | null => activeHighlight;
 
 export interface LinkGestureHooks {
   rectOf(id: string): DOMRect | null;
@@ -92,6 +98,11 @@ export function mountLinkGesture(
     onCut: async (a, b, la, lb) => {
       const ok = await cutTie(a, b, la, lb);
       if (!ok) toast('这条线已经不在了');
+    },
+    onHighlight: (id) => {
+      activeHighlight = id;
+      // 只有连线态里浮层在台上：hover 一行就点亮那颗星，其余压暗
+      if (phase === 'armed') hooks.setVisual(from, id, candidates, false);
     }
   });
 
@@ -125,6 +136,7 @@ export function mountLinkGesture(
     clearTimeout(hold);
     phase = 'idle';
     activeLinkSource = null;
+    activeHighlight = null;
     from = '';
     kind = '';
     target = null;
@@ -171,7 +183,9 @@ export function mountLinkGesture(
 
   const frame = (): void => {
     raf = requestAnimationFrame(frame);
-    if (phase !== 'drag' && phase !== 'armed') { svg.style.display = 'none'; return; }
+    // 只有真正拖拽才画预览线；连线态（点选）不画 —— 否则会有一条
+    // 指向松手位置的悬空虚线挂在屏幕上，看着像断掉的线
+    if (phase !== 'drag') { svg.style.display = 'none'; return; }
     const base = host.getBoundingClientRect();
     const r = hooks.rectOf(from);
     if (!r) { svg.style.display = 'none'; return; }
@@ -258,6 +272,14 @@ export function mountLinkGesture(
     cy = ev.clientY;
     const h = hit(cx, cy);
     if (valid(h)) { complete(h!.id); return; }
+    // 拖出去了（线真的拉出来过）却没落到目标星：这就是「取消」，
+    // 不留连线态、不留悬空虚线 —— 想剪线用原地松手或浮层
+    if (Math.hypot(cx - sx, cy - sy) > DRAG_TRAY_TOL) {
+      clear();
+      toast('已取消连线');
+      armGuard();
+      return;
+    }
     // 原地松手 → 进入连线态，浮层列出这颗星的所有线，可逐条剪断
     phase = 'armed';
     target = null;

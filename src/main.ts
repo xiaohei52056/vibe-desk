@@ -22,7 +22,7 @@ import { repairStorage } from './storage/db';
 import { loadView, rememberView } from './core/session';
 import { MOD_KEY } from './ui/platform';
 import { mountProjectLinks, relatedProjectIds, type ProjectLinksLayer } from './space/projectLinks';
-import { mountLinkGesture, linkSource, type LinkGesture } from './space/linkGesture';
+import { mountLinkGesture, linkSource, linkHighlight, type LinkGesture } from './space/linkGesture';
 import { cutTie } from './space/tieActions';
 import { migrateAutoTies, TIE_EVENT } from './notes/ties';
 
@@ -203,11 +203,14 @@ async function mount3d(): Promise<void> {
       const hotId = st.station ? '' : (st.focus ?? '');
       const just = walkedKey();
       const src = linkSource();
+      const hi = linkHighlight();
       return threads().map(([a, b]) => {
-        // 连线态里，源星已经连着的那些线先亮起来：剪线前得看得见要剪哪条
+        // 连线态里，源星已经连着的那些线先亮起来：剪线前得看得见要剪哪条；
+        // 浮层 hover 某一行时只点亮那一条
         const own = !!src && (src === a || src === b);
         const hot = (!!hotId && (hotId === a || hotId === b))
-          || (just !== null && just === linkKey(a, b)) || own;
+          || (just !== null && just === linkKey(a, b)) || own
+          || (!!hi && (hi === a || hi === b));
         // 没被点到的光丝压到六成：星多的时候它们不该抢正文与标签
         return {
           a, b,
