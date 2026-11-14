@@ -1,0 +1,70 @@
+/* 命令面板：纸面工具，不是控制台。
+   只有一条规则要守：它出现时像一张随手抽出来的索引卡，用完就走。 */
+
+#palette{position:absolute;inset:0;z-index:70;background:rgba(9,13,19,.62);
+  display:flex;align-items:flex-start;justify-content:center;padding-top:11vh;
+  animation:fade 170ms ease}
+#palette.hidden{display:none}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+
+.p-wrap{width:min(680px,88vw);max-height:78vh;display:flex;flex-direction:column;
+  background:#F7F5EF;border:1px solid #D6CEBD;border-radius:8px;
+  box-shadow:0 24px 70px rgba(0,0,0,.44);overflow:hidden;
+  animation:rise 210ms var(--ease-out)}
+@keyframes rise{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
+
+.p-head{padding:13px 20px;border-bottom:1px solid #E3DCCE;display:flex;
+  align-items:baseline;gap:12px;flex:none}
+.p-head h2{font-family:var(--serif);font-size:16.5px;font-weight:400;color:var(--ink);
+  letter-spacing:.02em}
+.p-head span{margin-left:auto;font-family:var(--mono);font-size:var(--fs-micro);color:#8A8272}
+
+.p-input{width:100%;flex:none;padding:15px 20px;font-family:var(--mono);font-size:var(--fs-body);
+  color:var(--ink);border-bottom:1px solid #E3DCCE;background:transparent}
+.p-input::placeholder{color:#A79E8D}
+
+.p-list{flex:1;min-height:0;overflow:auto;padding:6px 0}
+.p-row{padding:8px 20px;display:grid;grid-template-columns:18px 1fr auto;gap:12px;
+  align-items:center;cursor:pointer;border-left:2px solid transparent}
+.p-row.sel{background:#EDE9DF;border-left-color:#C9A063}
+.p-row .k{font-family:var(--mono);font-size:var(--fs-micro);color:#A9813F;align-self:flex-start;
+  padding-top:3px}
+.p-row.cmd{padding:8px 20px}
+.p-row.cmd .k{color:#B0A899}
+.p-row .n{display:flex;flex-direction:column;gap:2px;min-width:0}
+.p-row .n b{font-weight:400;font-size:var(--fs-small);color:#3C4859;line-height:1.45;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-row.cmd .n b{font-family:var(--mono);font-size:var(--fs-small);color:#6B6252}
+.p-row .n small{font-size:var(--fs-small);color:#8A8272;line-height:1.5;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-row .t{font-family:var(--mono);font-size:var(--fs-micro);color:#8A8272;text-align:right;
+  max-width:216px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p-row.cmd .t{color:#A9813F}
+/* 决策行：它属于某篇笔记，所以左边用「决」而不是序号 —— 序号是笔记的 */
+.p-row.dec .k{color:#B08A4E}
+.p-row.dec .n b{color:#6B5C3C}
+.p-row.dec .t{color:#A9813F}
+
+.p-empty{padding:16px 20px;font-size:var(--fs-small);color:#8A8272}
+
+.p-tags{display:none;flex:none;flex-wrap:wrap;gap:8px;padding:12px 20px 4px}
+.p-tags.on{display:flex}
+.p-tags button{font-family:var(--mono);font-size:var(--fs-micro);color:#7A6A4C;
+  padding:3px 9px;border:1px solid #DCD3C0;border-radius:11px;background:#F2EEE4;
+  transition:background 140ms,border-color 140ms}
+.p-tags button:hover{background:#EAE4D6;border-color:#C9A063;color:#8A6B33}
+
+.p-foot{flex:none;padding:10px 20px;border-top:1px solid #E3DCCE;
+  font-family:var(--mono);font-size:var(--fs-micro);color:#8A8272}
+
+@media (max-width:900px){
+  #palette{padding-top:8vh}
+  .p-wrap{width:94vw}
+  .p-row .t{display:none}
+}
+
+/* 矮屏（横屏手机 / 分屏）：面板贴顶，高度吃满，别被 11vh 顶到看不见底部 */
+@media (max-height:640px){
+  #palette{padding-top:5vh}
+  .p-wrap{max-height:88vh}
+}

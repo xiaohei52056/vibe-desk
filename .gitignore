@@ -1,0 +1,9 @@
+# 前端
+node_modules/
+dist/
+.chrome-*/
+.workbuddy/
+*.log
+
+# 后端
+backend/target/

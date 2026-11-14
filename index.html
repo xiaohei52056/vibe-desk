@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VIBE DESK</title>
+<link rel="stylesheet" href="/src/styles/base.css">
+<link rel="stylesheet" href="/src/styles/hud.css">
+<link rel="stylesheet" href="/src/styles/station.css">
+<link rel="stylesheet" href="/src/styles/write.css">
+<link rel="stylesheet" href="/src/styles/palette.css">
+</head>
+<body>
+<div id="stage">
+  <!-- 唯一的渲染层：真 3D 空间（星核、星环、星系、碎石、星云）。
+       动态 import 后 WebGL canvas 挂进这里；实体标签 / 站体 / HUD 是叠在其上的 DOM。 -->
+  <div id="space3d" aria-hidden="true"></div>
+
+  <div id="world">
+    <div id="entities"></div>
+    <div id="labels"></div>
+  </div>
+
+  <header id="hud-top">
+    <span class="brand">VIBE DESK</span>
+    <span class="sep"></span>
+    <span id="hud-place">回到上次位置 · 银河层</span>
+    <span class="sep"></span>
+    <span id="hud-mode">漂浮模式</span>
+    <span class="right" id="hud-date"></span>
+  </header>
+
+  <footer id="hud-bottom">
+    <span><kbd>/</kbd> 搜索</span>
+    <span><kbd>Enter</kbd> 进入</span>
+    <span><kbd>Esc</kbd> 退出</span>
+    <span><kbd>Tab</kbd> 书写</span>
+    <span><kbd>拖拽</kbd> 环绕</span>
+    <span class="right" id="hud-hint">坐标冻结 · 实体不公转</span>
+  </footer>
+
+  <section id="station" data-frame="0" data-mode="view" data-view="0" data-write="0">
+    <div class="station-grid"></div>
+    <div class="station-corners"></div>
+    <div id="view-content">
+      <div class="vc-top" id="vc-top">工作站 · 观看态 VIEW</div>
+      <div class="vc-title" id="vc-title">—</div>
+      <div class="vc-sub" id="vc-sub">—</div>
+      <div class="vc-rule"></div>
+      <div class="vc-recall" id="vc-recall"></div>
+      <div class="vc-fields" id="vc-fields"></div>
+      <div class="vc-readme">
+        <h4 id="vc-readme-h">README · 摘录</h4>
+        <p id="vc-readme-p">—</p>
+      </div>
+      <div class="vc-foot"><span>Tab 进入书写态　　Esc 收站</span><button type="button" class="vc-del" id="vc-del">删除</button></div>
+    </div>
+    <div id="write-content">
+      <div class="wc-bar"><span class="tag">工作站 · 书写态 WRITE</span><span id="wc-name">—</span>
+        <span class="sp" id="wc-keys">Tab 视图　运行　Esc 收站</span></div>
+      <div class="wc-paper">
+        <input id="note-title" class="wc-title" data-editor spellcheck="false"
+               placeholder="无标题" autocomplete="off">
+        <div id="note-host" class="wc-editor" data-editor></div>
+        <!-- 编译实验室：Cmd+Enter 来，Esc 走。Python 本地（Pyodide/Worker），Java 在线执行器 -->
+        <div id="runner" class="runner" data-open="0">
+          <div class="runner-bar">
+            <span class="tag">编译实验室 RUNNER</span>
+            <span class="rn-chip" id="rn-py">Python</span>
+            <span class="rn-chip" id="rn-java">Java</span>
+            <span class="rn-chip" id="rn-in-btn" title="标准输入（Scanner / input）">输入</span>
+            <span class="run-state" id="rn-state"></span>
+            <span class="sp"></span>
+            <button type="button" class="ghost" id="rn-to-note" title="把输出插入正文">插入</button>
+            <button type="button" class="ghost" id="rn-snip">示例</button>
+            <button type="button" id="rn-run">运行</button>
+            <button type="button" class="ghost" id="rn-close">收</button>
+          </div>
+          <div class="runner-body">
+            <textarea id="rn-code" class="runner-code" data-editor spellcheck="false"
+                      placeholder="// 光标停在 ```python 或 ```java 代码块里，按修饰键 + Enter 会直接带过来"></textarea>
+            <textarea id="rn-in" class="runner-in" data-editor spellcheck="false"
+                      placeholder="标准输入（可选）· 每行一条 —— Java Scanner / Python input() 读的就是它"></textarea>
+            <div id="rn-out" class="runner-out"></div>
+          </div>
+        </div>
+        <!-- 决策是笔记的脚注，不是又一个页面：折叠时只露最近一条 -->
+        <div class="decisions" id="decisions" data-open="0">
+          <div class="dec-head" id="dec-head">
+            <b>决策</b><span class="sum" id="dec-sum">还没有记录</span><span class="tg2" id="dec-toggle">展开</span>
+          </div>
+          <div class="dec-body" id="dec-body"></div>
+          <div class="dec-form" id="dec-form"></div>
+        </div>
+      </div>
+      <div class="wc-foot">
+        <span id="note-meta">—</span>
+        <span class="sep" id="note-sep"></span>
+        <span id="note-links" class="wc-links"></span>
+        <span class="sp"></span>
+        <span id="save-state" class="wc-save">已保存</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 搜索与命令：索引常驻，界面临时 -->
+  <div id="palette" class="hidden"></div>
+
+  <div id="particles"></div>
+  <div id="toast"></div>
+</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+/* 空间站：两级工位。
+   观看态是半透明外壁 + 网格，看得见星图；书写态铺满、不透明、背景零运动。 */
+#station{position:absolute;z-index:25;overflow:hidden;border-radius:10px;
+  /* transform-origin 由 JS 按「站体中心 + 指向恒星的矢量」逐次写入 */
+  transform-origin:50% 50%;opacity:0;pointer-events:none;
+  transition:left 400ms var(--ease-out),top 400ms var(--ease-out),
+    width 400ms var(--ease-out),height 400ms var(--ease-out),
+    background 400ms ease,border-color 400ms ease,box-shadow 400ms ease;
+  /* 观看态外壁是「深空玻璃」：半透明 + 毛玻璃，让身后的 3D 星空透进来，
+     站体才像悬浮在空间里，而不是一块压在画上的不透明板 */
+  border:1px solid rgba(96,112,140,.45);
+  background:rgba(21,30,44,.72);
+  -webkit-backdrop-filter:blur(14px) saturate(1.15);
+  backdrop-filter:blur(14px) saturate(1.15);
+  box-shadow:0 24px 70px rgba(6,10,16,.4)}
+#station.on{pointer-events:auto}
+
+.station-grid{position:absolute;inset:0;pointer-events:none;opacity:.13;z-index:1;
+  background-image:linear-gradient(to right,rgba(120,140,170,.5) 1px,transparent 1px),
+    linear-gradient(to bottom,rgba(120,140,170,.5) 1px,transparent 1px);
+  background-size:40px 40px;transition:opacity 400ms}
+.station-corners{position:absolute;inset:0;pointer-events:none}
+#station[data-mode="write"] .station-grid{opacity:0}
+#station[data-mode="write"]{background:var(--paper) !important;
+  -webkit-backdrop-filter:none;backdrop-filter:none;
+  border-color:#D6CEBD !important;
+  box-shadow:0 18px 60px rgba(8,12,18,.32)}
+
+/* 内容层显隐由 data-view / data-write 控制，不由阶段号控制：
+   阶段只是帧标记，内容该在什么时候浮现是动效的事，两者解耦才好调。 */
+#view-content,#write-content{position:absolute;inset:0;opacity:0;pointer-events:none;
+  transition:opacity 220ms ease}
+#view-content{background:rgba(19,27,38,.28);padding:32px 36px;
+  display:flex;flex-direction:column;overflow-y:auto}
+/* 观看态现在可能多出「回看」这一块：内容超出时让它自己滚，不裁掉底部 */
+#view-content::-webkit-scrollbar{width:6px}
+#view-content::-webkit-scrollbar-thumb{background:rgba(120,140,170,.28);border-radius:3px}
+#station[data-view="1"] #view-content{opacity:1;pointer-events:auto}
+#station[data-write="1"] #write-content{opacity:1;pointer-events:auto}
+
+/* 观看态整站可点：点正文任意处直接进书写态（回看区与删除按钮除外） */
+#station[data-mode="view"]{cursor:pointer}
+
+.vc-top{font-family:var(--mono);font-size:var(--fs-micro);color:var(--gold);letter-spacing:.08em}
+/* 观看态字号同样自适应：大屏上标题与字段跟着放大，不缩成一小撮 */
+.vc-title{font-family:var(--serif);font-size:clamp(27px,.55vw + 22px,36px);
+  color:#F3EFE6;margin-top:16px;line-height:1.3}
+.vc-sub{font-size:var(--fs-small);color:var(--ui);margin-top:8px}
+.vc-rule{height:1px;background:rgba(90,106,130,.4);margin:26px 0 22px}
+.vc-fields{display:flex;flex-direction:column;gap:14px}
+.vc-fields>div{display:grid;grid-template-columns:74px 1fr;gap:12px;
+  font-size:clamp(14px,.18vw + 13.2px,16px);
+  color:#C9D6EE;line-height:1.55}
+.vc-fields b{font-family:var(--mono);font-size:var(--fs-small);font-weight:400;color:var(--gold);
+  letter-spacing:.06em}
+.vc-fields .next{color:var(--warm)}
+.vc-readme{margin-top:auto;border-top:1px solid rgba(90,106,130,.35);padding-top:16px}
+.vc-readme h4{font-family:var(--mono);font-size:var(--fs-micro);font-weight:400;color:var(--ui);
+  letter-spacing:.08em;margin-bottom:10px}
+.vc-readme p{font-size:var(--fs-small);color:#9AA8CC;line-height:1.9}
+/* 观看态的截图缩略图：一排、等高、超出的裁切 —— 不抢正文，但一眼可见 */
+.vc-imgs{display:flex;gap:8px;margin-top:10px}
+.vc-imgs img{height:64px;width:auto;max-width:32%;object-fit:cover;border-radius:4px;
+  border:1px solid rgba(90,106,130,.35);opacity:.92;cursor:zoom-in}
+.vc-foot{margin-top:16px;display:flex;align-items:center;gap:14px;
+  font-family:var(--mono);font-size:var(--fs-micro);color:var(--dim)}
+/* 删除：平时是一行灰字，点一下变成红色的「确认删除？」，3 秒内再点才真删。
+   不做弹窗、不做二次页面 —— 就地把决定放慢一拍。 */
+.vc-del{margin-left:auto;color:#8A94A6;padding:2px 0;
+  border-bottom:1px dotted transparent;
+  transition:color 160ms,border-color 160ms}
+.vc-del:hover{color:#D8A79C;border-bottom-color:rgba(180,100,90,.6)}
+.vc-del.armed{color:#E0A79B;border-bottom-color:#B4645A;letter-spacing:.06em}
+
+/* 该回看 · 站内那一行
+   一行引文，一个空，三个词。答完即散，不留痕迹。 */
+.vc-recall{margin:0 0 24px;padding:1px 0 1px 15px;border-left:1px solid rgba(201,160,99,.46);
+  opacity:0;transition:opacity 340ms ease}
+.vc-recall.on{opacity:1}
+.vc-recall.gone{opacity:0;transition:opacity 380ms ease}
+.vc-recall .rc-lb{font-family:var(--mono);font-size:var(--fs-micro);color:#C9A063;letter-spacing:.1em}
+.vc-recall .rc-q{font-family:var(--serif);font-size:16px;color:#E2DDD0;line-height:1.95;margin-top:9px}
+.vc-recall .rc-q .rc-blank{display:inline-block;min-width:78px;height:1em;vertical-align:-1px;
+  color:transparent;border-bottom:1px solid rgba(201,160,99,.68);margin:0 8px}
+.vc-recall .rc-q .rc-cut{color:#8E9AB0;letter-spacing:.06em}
+.vc-recall .rc-opts{display:flex;gap:20px;margin-top:13px}
+.vc-recall .rc-opts button{font-family:var(--sans);font-size:var(--fs-small);color:#A4B0C6;padding:2px 0;
+  border-bottom:1px solid transparent;transition:color 200ms,border-color 200ms;cursor:pointer}
+.vc-recall .rc-opts button:hover{color:#F3EFE6;border-bottom-color:rgba(201,160,99,.55)}
+.vc-recall .rc-opts button.picked{color:#C9A063;border-bottom-color:#C9A063}
+
+/* 观看态的决策行：只给一行「问题 → 选择」，理由在 title 里 */
+.vc-fields .dec em{font-style:normal;color:#E2DDD0}
+.vc-fields .dec span{color:#9AA8CC;font-size:var(--fs-small)}
+
+/* 书写态：铺满、不透明、背景零运动，正文对比度 ≥7:1 */
+#write-content{background:var(--paper);display:flex;flex-direction:column;color:var(--ink)}
+.wc-bar{height:42px;flex:none;display:flex;align-items:center;gap:14px;padding:0 24px;
+  border-bottom:1px solid #E3DCCE;font-family:var(--mono);font-size:var(--fs-micro);color:#8A8272}
+.wc-bar .tag{color:#A9813F}
+.wc-bar #wc-name{color:var(--ink);font-family:var(--sans);font-size:var(--fs-small)}
+.wc-bar .sp{margin-left:auto;color:#B0A899}
+#write-content .wc-placeholder{flex:1;display:flex;flex-direction:column;
+  align-items:flex-start;justify-content:center;gap:10px;padding:0 72px;max-width:640px}
+#write-content .wc-placeholder b{font-family:var(--serif);font-size:17px;font-weight:400;
+  color:var(--ink)}
+#write-content .wc-placeholder span{font-size:var(--fs-small);color:#6B6252;line-height:1.9}
+
+@media (max-width:900px){
+  #view-content{padding:24px}
+  #write-content .wc-placeholder{padding:0 28px}
+}
+
+/* 窄屏：站体贴边（JS 已把盒子铺开），字号与内边距同步收一档 */
+@media (max-width:720px){
+  #view-content{padding:22px 20px}
+  .vc-title{font-size:22px;margin-top:12px}
+  .vc-fields>div{grid-template-columns:62px 1fr;font-size:var(--fs-small);gap:10px}
+  .vc-recall .rc-q{font-size:15px}
+}

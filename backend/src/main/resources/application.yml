@@ -1,0 +1,31 @@
+# VIBE DESK 后端配置
+# 数据库：MySQL 8，库名 vibedesk（建库脚本见 init-db.sql）
+server:
+  port: 8080
+
+spring:
+  application:
+    name: vibe-desk-server
+  datasource:
+    url: jdbc:mysql://localhost:3306/vibedesk?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: "123456789"   # 本机开发库；部署到服务器时改成服务器密码
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      # 每次启动跑 schema.sql（内部全是 CREATE TABLE IF NOT EXISTS，可重复执行）
+      mode: always
+      schema-locations: classpath:schema.sql
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+# 前端直连（不走 Vite 代理）时允许的来源
+app:
+  cors:
+    origins: http://localhost:4173,http://127.0.0.1:4173,http://localhost:4300,http://127.0.0.1:4300
+
+logging:
+  level:
+    com.vibedesk: info

@@ -1,0 +1,37 @@
+#hud-top,#hud-bottom{position:absolute;left:0;right:0;height:44px;display:flex;align-items:center;
+  padding:0 48px;gap:22px;font-family:var(--mono);font-size:var(--fs-small);color:#95A6BE;
+  z-index:20;opacity:.88;
+  /* 压在星空上：给一层极淡的深色衬影，保证任何背景上都读得清 */
+  text-shadow:0 1px 6px rgba(4,8,14,.92),0 0 14px rgba(4,8,14,.7);
+  transition:opacity 300ms}
+#hud-top{top:0}
+#hud-bottom{bottom:0;opacity:.82}
+#hud-top:hover,#hud-bottom:hover{opacity:1}
+#hud-top .brand{color:var(--gold);letter-spacing:.14em}
+#hud-top .sep{width:1px;height:12px;background:var(--line)}
+#hud-top .right{margin-left:auto;color:#8E9DB3}
+#hud-bottom .right{margin-left:auto;font-family:var(--sans);font-size:var(--fs-micro);
+  color:var(--gold);opacity:.92}
+#hud-bottom kbd{font-family:var(--mono);color:#F0EADB;opacity:1;
+  padding:1px 5px;border-radius:3px;background:rgba(12,18,28,.55);
+  border:1px solid rgba(150,168,196,.18)}
+/* 书写态铺满时 HUD 退场：编辑器自带工具条与状态栏，不是常驻面板 */
+#stage.writing #hud-top,#stage.writing #hud-bottom{opacity:0;pointer-events:none}
+
+#toast{position:absolute;left:50%;bottom:64px;transform:translate(-50%,8px);z-index:80;
+  padding:9px 18px;background:rgba(26,36,50,.94);border:1px solid rgba(201,160,99,.4);
+  border-radius:4px;font-size:var(--fs-small);color:var(--warm);opacity:0;pointer-events:none;
+  transition:opacity 240ms,transform 240ms;white-space:nowrap}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:900px){
+  #hud-top,#hud-bottom{padding:0 20px;font-size:var(--fs-micro)}
+  #hud-bottom .right{display:none}
+}
+
+/* 窄屏：只留最关键的信息，别把顶部塞满 */
+@media (max-width:640px){
+  #hud-top,#hud-bottom{padding:0 16px;gap:14px}
+  #hud-top .right{display:none}
+  #toast{bottom:52px;font-size:var(--fs-micro);padding:8px 14px}
+}

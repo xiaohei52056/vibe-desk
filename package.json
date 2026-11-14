@@ -1,0 +1,29 @@
+{
+  "name": "vibe-desk",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "verify:motion": "node tools/verify-motion.mjs",
+    "setup:py": "node tools/copy-pyodide.mjs"
+  },
+  "devDependencies": {
+    "@lezer/markdown": "^1.8.1",
+    "@types/three": "^0.170.0",
+    "pyodide": "^0.26.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
+    "three": "^0.170.0"
+  }
+}
