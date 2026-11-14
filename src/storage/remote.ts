@@ -1,16 +1,28 @@
 /**
- * 云端同步：Spring Boot 后端（backend/，默认 localhost:8080，dev 走 Vite 代理）。
+ * 云端同步：Spring Boot 后端（backend/，默认 localhost:8080）。
  *
- * 两条路，语义与文件导入导出完全一致 —— 同一份 Bundle，三种走法：
- *   文件导出/导入、云端拉取/推送，数据形态不变。
- *   拉取 GET  /api/sync/bundle → applyBundle（替换本地）
- *   推送 POST /api/sync/bundle ← buildBundle（替换云端）
+ * 三种走法，同一份 Bundle：文件导出/导入、手动云端拉取/推送、启动自动同步。
  *
- * 失败要给人话：后端没启动是最常见的情形，别把 fetch 原始报错甩给用户。
+ * 启动自动同步（autoSyncFromCloud）是默认行为，两条规矩：
+ *   1. **合并，不替换**：云端有而本地没有的补进来；同 id 按 updatedAt 新者胜；
+ *      本地独有的绝不删除。所以云端数据会自动出现，用户自己写的东西也不会被冲掉。
+ *   2. **失败静默**：后端没启动、页面是静态部署、网络不通，都只当离线处理 ——
+ *      不弹「云端不可达」打断阅读。
+ *
+ * 地址兼容：优先走同源 /api（Vite dev 有代理）；拿不到就直连 localhost:8080，
+ * 这样静态构建版、别的端口打开时也能连到本机后端。
  */
-import { applyBundle, buildBundle, type Bundle } from './transfer';
+import {
+  getAll, putOne,
+  type DecisionRow, type EntityRow, type LinkRow, type Note, type ReviewRow
+} from './db';
+import type { AssetRow } from '../notes/images';
+import { applyBundle, buildBundle, type AssetPack, type Bundle } from './transfer';
 
-const SYNC_URL = '/api/sync/bundle';
+const API_BASES = ['/api', 'http://localhost:8080/api'];
+const API_TIMEOUT = 2500;
+const SYNC_PATH = '/sync/bundle';
+const HEALTH_PATH = '/health';
 
 export interface SyncSummary {
   notes: number;
@@ -27,17 +39,115 @@ export interface CloudHealth {
   assets: number;
 }
 
-/** 后端在不在：调用方拿它决定提示文案（启动后端 / 后端出错） */
+export interface AutoSyncReport {
+  ok: boolean;
+  /** 从云端补进来的笔记数 */
+  added: number;
+  /** 云端更新、覆盖了本地旧版的笔记数 */
+  updated: number;
+  reason?: string;
+}
+
+/** 依次尝试基址；GET 失败就换下一个，POST 不重试（避免写两次） */
+async function apiFetch(path: string, init: RequestInit = {}, retryOnError = true): Promise<Response> {
+  let last: unknown = null;
+  for (const base of API_BASES) {
+    try {
+      const res = await fetch(base + path, { ...init, signal: AbortSignal.timeout(API_TIMEOUT) });
+      if (res.ok || !retryOnError) return res;
+      last = new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      last = err;
+    }
+  }
+  throw last ?? new Error('后端不可达');
+}
+
+/** 后端在不在：只给调试/手动命令用，自动流程不依赖它 */
 export async function cloudHealth(): Promise<CloudHealth> {
-  const res = await fetch('/api/health');
-  if (!res.ok) throw new Error(`后端返回 ${res.status}`);
+  const res = await apiFetch(HEALTH_PATH);
   return res.json() as Promise<CloudHealth>;
 }
 
-/** 云端拉取：服务器 → 本地（替换式。调用方负责确认与工位收尾） */
+/** 取一份云端 Bundle；任何失败都返回 null，绝不抛到界面上 */
+async function fetchBundle(): Promise<Bundle | null> {
+  try {
+    const res = await apiFetch(SYNC_PATH);
+    const raw = await res.json() as Partial<Bundle>;
+    if (!raw || raw.app !== 'vibe-desk' || !Array.isArray(raw.notes)) return null;
+    return raw as Bundle;
+  } catch {
+    return null;
+  }
+}
+
+function b64ToBlob(data: string, mime: string): Blob {
+  const bin = atob(data);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return new Blob([buf], { type: mime });
+}
+
+/**
+ * 启动自动同步：云端 → 本地，合并式。
+ * 只补不删；配置型数据（实体）以云端为准，笔记按时间新者胜。
+ */
+export async function autoSyncFromCloud(): Promise<AutoSyncReport> {
+  const bundle = await fetchBundle();
+  if (!bundle) return { ok: false, added: 0, updated: 0, reason: '后端不可达' };
+
+  try {
+    let added = 0;
+    let updated = 0;
+
+    // 笔记：本地没有就补，同 id 取 updatedAt 新者
+    const localNotes = new Map((await getAll<Note>('notes')).map(n => [n.id, n]));
+    for (const n of bundle.notes) {
+      const cur = localNotes.get(n.id);
+      if (!cur) { await putOne('notes', n); added++; }
+      else if (n.updatedAt > cur.updatedAt) { await putOne('notes', n); updated++; }
+    }
+
+    // 双链：按 key 合并，最近「走过」的那份胜
+    const localLinks = new Map((await getAll<LinkRow>('links')).map(l => [l.key, l]));
+    for (const l of bundle.links) {
+      const cur = localLinks.get(l.key);
+      if (!cur || l.lastWalkedAt > cur.lastWalkedAt) await putOne('links', l);
+    }
+
+    // 回看：到期时间更靠后的那份更接近真实进度
+    const localReview = new Map((await getAll<ReviewRow>('review')).map(r => [r.noteId, r]));
+    for (const r of bundle.review) {
+      const cur = localReview.get(r.noteId);
+      if (!cur || r.dueAt > cur.dueAt) await putOne('review', r);
+    }
+
+    // 决策 / 图片：只补缺失，不覆盖（用户可能删过、改过）
+    const localDec = new Set((await getAll<DecisionRow>('decisions')).map(d => d.id));
+    for (const d of bundle.decisions) if (!localDec.has(d.id)) await putOne('decisions', d);
+
+    const localAssets = new Set((await getAll<AssetRow>('assets')).map(a => a.id));
+    for (const a of (bundle.assets ?? []) as AssetPack[]) {
+      if (localAssets.has(a.id)) continue;
+      const row: AssetRow = {
+        id: a.id, blob: b64ToBlob(a.data, a.mime),
+        mime: a.mime, w: a.w, h: a.h, at: a.at
+      };
+      await putOne('assets', row);
+    }
+
+    // 站点实体是配置，云端为准：同 id 覆盖，缺失补
+    for (const e of (bundle.entities ?? []) as EntityRow[]) await putOne('entities', e);
+
+    return { ok: true, added, updated };
+  } catch (err) {
+    return { ok: false, added: 0, updated: 0, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** 手动云端拉取：服务器 → 本地（替换式。调用方负责确认与工位收尾） */
 export async function pullFromCloud(): Promise<SyncSummary> {
-  const res = await fetch(SYNC_URL);
-  if (!res.ok) throw new Error(`后端返回 ${res.status}`);
+  const res = await apiFetch(SYNC_PATH);
   const raw = await res.json() as Partial<Bundle>;
   if (!raw || raw.app !== 'vibe-desk' || !Array.isArray(raw.notes)) {
     throw new Error('云端返回的数据不是 VIBE DESK 格式');
@@ -54,14 +164,14 @@ export async function pullFromCloud(): Promise<SyncSummary> {
   };
 }
 
-/** 云端推送：本地 → 服务器（替换式。后端拒绝空包，覆盖前先确认） */
+/** 手动云端推送：本地 → 服务器（替换式。后端拒绝空包，覆盖前先确认） */
 export async function pushToCloud(): Promise<SyncSummary> {
   const bundle = await buildBundle();
-  const res = await fetch(SYNC_URL, {
+  const res = await apiFetch(SYNC_PATH, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(bundle)
-  });
+  }, false);
   const data = await res.json().catch(() => null) as
     { ok?: boolean; error?: string; counts?: Record<string, number> } | null;
   if (!res.ok || !data?.ok) throw new Error(data?.error ?? `后端返回 ${res.status}`);

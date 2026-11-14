@@ -16,8 +16,8 @@ import { initDecisions, onDecisions, removeDecisionsFor } from './notes/decision
 import { walkThread, threads, linkWeight, linkNorm, linkKey, walkedKey } from './notes/links';
 import { RunnerPanel } from './sandbox/panel';
 import { applyBundle, buildBundle, downloadBundle, parseBundle } from './storage/transfer';
-import { pullFromCloud, pushToCloud } from './storage/remote';
-import { initEntityRows, syncEntityRows } from './storage/entityData';
+import { autoSyncFromCloud, pullFromCloud, pushToCloud } from './storage/remote';
+import { initEntityRows } from './storage/entityData';
 import { loadView, rememberView } from './core/session';
 import { MOD_KEY } from './ui/platform';
 
@@ -363,7 +363,7 @@ async function pullCloud(): Promise<void> {
     toast(`已从云端拉取 ${s.notes} 篇笔记 · ${s.assets} 张图片`);
   } catch (err) {
     console.warn('[sync] 云端拉取失败', err);
-    toast('云端不可达 · 先启动后端：backend 目录执行 mvn spring-boot:run');
+    toast('没连上后端 · 本地数据没动，启动后端后会自动同步');
   }
 }
 
@@ -374,7 +374,7 @@ async function pushCloud(): Promise<void> {
     toast(`已推送到云端：${s.notes} 篇笔记 · ${s.assets} 张图片`);
   } catch (err) {
     console.warn('[sync] 云端推送失败', err);
-    toast('云端不可达 · 先启动后端：backend 目录执行 mvn spring-boot:run');
+    toast('没连上后端 · 本地数据没动，启动后端后会自动同步');
   }
 }
 
@@ -417,18 +417,41 @@ async function restoreView(): Promise<void> {
 void initNotes().then(async report => {
   // 回看与决策都要在笔记就位之后再读：前者按「最后落笔时间」算到期，后者要挂到笔记上
   await Promise.all([initReview(), initDecisions()]);
-  await initEntityRows();          // 本地缓存先让光门 / 项目卡生效
+
+  // 启动即自动同步云端：合并式（只补不删、新者胜）、失败静默。
+  // 后端没开、静态部署、网络不通都只当离线处理，不弹错误打断阅读。
+  const cloud = await autoSyncFromCloud();
+  if (cloud.ok) {
+    await initNotes();
+    await Promise.all([initReview(), initDecisions()]);
+  }
+  await initEntityRows();          // 光门 / 项目卡配置（本地或刚同步来的）
   syncIndex();
   syncExtras();
   rerenderEntities();
   stationRef?.refresh();
   if (report.source === 'legacy') toast(`已从原型迁移 ${report.notes} 篇笔记`);
   else if (report.source === 'seed') toast('首次启动 · 已放入七篇示例笔记');
-  console.info('[notes]', report);
-  // 后端可达时拉一次实体配置：只改光门 / 项目卡，绝不碰本地笔记数据
-  void syncEntityRows().then(ok => {
-    if (ok) { rerenderEntities(); stationRef?.refresh(); }
-  });
+  console.info('[notes]', report, '[cloud]', cloud);
+  if (!cloud.ok) {
+    // 后端可能比页面晚一步起来：静默重试，连上后自动补一次数据（最多 5 分钟）
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      tries++;
+      void autoSyncFromCloud().then(async r => {
+        if (!r.ok) { if (tries >= 20) window.clearInterval(timer); return; }
+        window.clearInterval(timer);
+        await initNotes();
+        await Promise.all([initReview(), initDecisions()]);
+        await initEntityRows();
+        syncIndex();
+        syncExtras();
+        rerenderEntities();
+        stationRef?.refresh();
+        palette.refresh();
+      });
+    }, 15000);
+  }
   void restoreView();
 }).catch(err => {
   console.warn('[notes] 存储不可用，退回只读', err);

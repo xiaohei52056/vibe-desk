@@ -76,7 +76,7 @@ export class Palette {
       { label: '收站', meta: 'Esc', run: () => this.hooks.closeStation() },
       { label: '导出全部数据', meta: 'JSON', run: () => this.hooks.exportData() },
       { label: '导入数据（替换）', meta: 'JSON', run: () => this.hooks.importData() },
-      { label: '云端拉取（替换本地）', meta: 'MySQL', run: () => this.hooks.pullCloud() },
+      { label: '强制云端覆盖本地', meta: '手动', run: () => this.hooks.pullCloud() },
       { label: '云端推送（覆盖云端）', meta: 'MySQL', run: () => this.hooks.pushCloud() }
     ];
   }
