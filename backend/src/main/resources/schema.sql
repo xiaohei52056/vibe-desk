@@ -58,3 +58,14 @@ CREATE TABLE IF NOT EXISTS meta (
   v TEXT        NULL COMMENT '值（JSON）',
   PRIMARY KEY (k)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='内部状态（迁移标记等，不参与同步）';
+
+CREATE TABLE IF NOT EXISTS entities (
+  id          VARCHAR(32)  NOT NULL COMMENT '实体 id（与前端 coords.ts 的冻结坐标一一对应）',
+  kind        VARCHAR(16)  NOT NULL COMMENT 'gate / project / core / spider',
+  label       VARCHAR(100) NOT NULL COMMENT '星图上的名字',
+  sub         VARCHAR(200) NULL COMMENT '星图上的副标题',
+  url         VARCHAR(500) NULL COMMENT '站外入口 / 仓库链接',
+  detail      TEXT         NULL COMMENT '项目卡三字段或说明（JSON）',
+  updated_at  BIGINT       NOT NULL COMMENT '更新时间（epoch 毫秒）',
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='站点实体配置（光门与项目卡；坐标不在库里，仍由前端冻结）';

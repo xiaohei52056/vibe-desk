@@ -4,6 +4,7 @@ import com.vibedesk.entity.DecisionRecord;
 import com.vibedesk.entity.Note;
 import com.vibedesk.entity.NoteLink;
 import com.vibedesk.entity.ReviewCard;
+import com.vibedesk.entity.SiteEntity;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -22,7 +23,8 @@ public class SeedData {
     private static final long DAY = 86400000L;
 
     public record SeedBundle(List<Note> notes, List<NoteLink> links,
-                             List<ReviewCard> review, List<DecisionRecord> decisions) {
+                             List<ReviewCard> review, List<DecisionRecord> decisions,
+                             List<SiteEntity> entities) {
     }
 
     public SeedBundle build() {
@@ -332,10 +334,41 @@ public class SeedData {
                         "合并需要版本向量与冲突界面；替换语义可预期，且有本地导出兜底")
         );
 
-        return new SeedBundle(notes, links, review, decisions);
+        /* ---------------- 站点实体 4 条：纪念册光门 + 3 个真实 GitHub 项目 ---------------- */
+        // 坐标不在库里：前端 coords.ts 的 gate / p1 / p2 / p3 仍是冻结契约，
+        // 这里只提供名字、链接与卡片内容。
+        List<SiteEntity> entities = List.of(
+                siteEntity("gate", "gate", t, "星河回忆", "纪念册 · 站外入口 · 点击打开",
+                        "http://8.148.6.228:8082/mem/",
+                        "{\"note\":\"纪念册只是站外入口：台内只保留一颗恒定亮度的深空天体与站外链接，不存在第二份纪念内容。\"}"),
+                siteEntity("p1", "project", t, "sweet-memory", "Vue · 恋爱纪念册",
+                        "https://github.com/xiaohei52056/sweet-memory",
+                        "{\"goal\":\"把两个人的时间放进一片星河\",\"current\":\"3D 星河相册已上线，按时间轴翻看\",\"next\":\"补一段年度回望，再加一条时间轴\"}"),
+                siteEntity("p2", "project", t, "my-blog", "Java · 个人博客",
+                        "https://github.com/xiaohei52056/my-blog",
+                        "{\"goal\":\"写下来的才算想清楚\",\"current\":\"Java 后端 + 文章模块在跑\",\"next\":\"把本地优先的同步实践整理成一篇\"}"),
+                siteEntity("p3", "project", t, "skill-evidence-lint", "Python · Skill 证据检查",
+                        "https://github.com/xiaohei52056/skill-evidence-lint",
+                        "{\"goal\":\"让 Skill 的可量化声明都有证据链接\",\"current\":\"纯本地静态检查，不联网、不执行 Skill\",\"next\":\"覆盖更多声明类型与路径校验\"}")
+        );
+
+        return new SeedBundle(notes, links, review, decisions, entities);
     }
 
     /* ---------------- 工厂 ---------------- */
+
+    private static SiteEntity siteEntity(String id, String kind, long at,
+                                         String label, String sub, String url, String detail) {
+        SiteEntity e = new SiteEntity();
+        e.setId(id);
+        e.setKind(kind);
+        e.setLabel(label);
+        e.setSub(sub);
+        e.setUrl(url);
+        e.setDetail(detail);
+        e.setUpdatedAt(at);
+        return e;
+    }
 
     private static Note note(String id, String title, long createdAt, long updatedAt, String body) {
         Note n = new Note();

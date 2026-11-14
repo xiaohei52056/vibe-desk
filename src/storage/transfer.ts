@@ -10,7 +10,7 @@
  */
 import {
   clearStore, getAll, putOne,
-  type DecisionRow, type LinkRow, type Note, type ReviewRow
+  type DecisionRow, type EntityRow, type LinkRow, type Note, type ReviewRow
 } from './db';
 import { allAssets, type AssetRow } from '../notes/images';
 
@@ -26,13 +26,15 @@ export interface AssetPack {
 
 export interface Bundle {
   app: 'vibe-desk';
-  version: 2;
+  /** v3：附带光门 / 项目卡配置；v1/v2 文件照样能读 */
+  version: 3;
   at: number;
   notes: Note[];
   links: LinkRow[];
   review: ReviewRow[];
   decisions: DecisionRow[];
   assets: AssetPack[];
+  entities: EntityRow[];
 }
 
 async function blobToB64(blob: Blob): Promise<string> {
@@ -58,13 +60,14 @@ export async function buildBundle(): Promise<Bundle> {
   }
   return {
     app: 'vibe-desk',
-    version: 2,
+    version: 3,
     at: Date.now(),
     notes: await getAll<Note>('notes'),
     links: await getAll<LinkRow>('links'),
     review: await getAll<ReviewRow>('review'),
     decisions: await getAll<DecisionRow>('decisions'),
-    assets
+    assets,
+    entities: await getAll<EntityRow>('entities')
   };
 }
 
@@ -158,12 +161,29 @@ export function parseBundle(text: string): Bundle {
     };
   }).filter((a): a is AssetPack => !!a);
 
-  return { app: 'vibe-desk', version: 2, at, notes, links, review, decisions, assets };
+  // v1/v2 文件没有 entities 字段：当作空数组，旧备份照样能进来
+  const entities: EntityRow[] = ((raw.entities ?? []) as unknown[]).map(x => {
+    const o = x as Partial<EntityRow>;
+    const id = str(o.id);
+    if (!id) return null;
+    return {
+      id,
+      kind: (['gate', 'project', 'core', 'spider'] as const).includes(o.kind as EntityRow['kind'])
+        ? (o.kind as EntityRow['kind']) : 'project',
+      label: str(o.label),
+      sub: str(o.sub),
+      url: str(o.url),
+      detail: str(o.detail),
+      updatedAt: num(o.updatedAt, at)
+    };
+  }).filter((x): x is EntityRow => !!x);
+
+  return { app: 'vibe-desk', version: 3, at, notes, links, review, decisions, assets, entities };
 }
 
-/** 替换式导入：先清空五张表，再逐条写入 */
+/** 替换式导入：先清空六张表，再逐条写入 */
 export async function applyBundle(bundle: Bundle): Promise<Bundle> {
-  for (const store of ['notes', 'links', 'review', 'decisions', 'assets'] as const) {
+  for (const store of ['notes', 'links', 'review', 'decisions', 'assets', 'entities'] as const) {
     await clearStore(store);
   }
   for (const n of bundle.notes) await putOne('notes', n);
@@ -181,5 +201,6 @@ export async function applyBundle(bundle: Bundle): Promise<Bundle> {
     };
     await putOne('assets', row);
   }
+  for (const e of bundle.entities ?? []) await putOne('entities', e);
   return bundle;
 }

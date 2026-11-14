@@ -6,6 +6,7 @@ import com.vibedesk.mapper.DecisionRecordMapper;
 import com.vibedesk.mapper.NoteLinkMapper;
 import com.vibedesk.mapper.NoteMapper;
 import com.vibedesk.mapper.ReviewCardMapper;
+import com.vibedesk.mapper.SiteEntityMapper;
 import com.vibedesk.seed.SeedData.SeedBundle;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
@@ -33,29 +34,35 @@ public class SeedRunner implements CommandLineRunner {
     private final ReviewCardMapper review;
     private final DecisionRecordMapper decisions;
     private final AssetMapper assets;
+    private final SiteEntityMapper siteEntities;
     private final SeedData seedData;
 
     @Override
     public void run(String... args) throws Exception {
-        if (notes.selectCount(null) > 0) {
-            return;
-        }
+        // 三类数据各自判断：老库已经有 18 篇笔记时，实体表依然要能补上种子
         SeedBundle seed = seedData.build();
-        seed.notes().forEach(notes::insert);
-        seed.links().forEach(links::insert);
-        seed.review().forEach(review::insert);
-        seed.decisions().forEach(decisions::insert);
 
-        // 画一颗种子星核：128×128 PNG，给 assets 表一个真实内容，
-        // 「云端拉取」后 n17 的 ![星核](asset:img-seed-star) 能立刻渲染出来
-        Asset star = new Asset();
-        star.setId("img-seed-star");
-        star.setMime("image/png");
-        star.setW(128);
-        star.setH(128);
-        star.setAt(System.currentTimeMillis());
-        star.setData(drawSeedStar());
-        assets.insert(star);
+        if (notes.selectCount(null) == 0) {
+            seed.notes().forEach(notes::insert);
+            seed.links().forEach(links::insert);
+            seed.review().forEach(review::insert);
+            seed.decisions().forEach(decisions::insert);
+        }
+        if (siteEntities.selectCount(null) == 0) {
+            seed.entities().forEach(siteEntities::insert);
+        }
+        if (assets.selectCount(null) == 0) {
+            // 画一颗种子星核：128×128 PNG，给 assets 表一个真实内容，
+            // 「云端拉取」后 n17 的 ![星核](asset:img-seed-star) 能立刻渲染出来
+            Asset star = new Asset();
+            star.setId("img-seed-star");
+            star.setMime("image/png");
+            star.setW(128);
+            star.setH(128);
+            star.setAt(System.currentTimeMillis());
+            star.setData(drawSeedStar());
+            assets.insert(star);
+        }
     }
 
     /** 画星核：暗夜底 + 金色四芒星，贴项目审美 */

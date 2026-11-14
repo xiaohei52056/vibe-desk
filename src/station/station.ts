@@ -21,6 +21,7 @@ import { answerRecall, dueList, recallQuestion, type RecallAnswer } from '../not
 import { latestOf } from '../notes/decisions';
 import { assetUrl, imagesOf } from '../notes/images';
 import type { Note } from '../storage/db';
+import { entityDetail, entityOf } from '../storage/entityData';
 import { EASE_OUT, MOTION, growthOrigin, reverseMs, type Segment } from './motion';
 
 interface Box { left: number; top: number; width: number; height: number }
@@ -443,22 +444,41 @@ export class Station {
     if (!fields) return;
     fields.textContent = '';
 
-    const rows: [string, string][] = e.kind === 'project'
-      ? [['目标', '占位 · 待填'], ['当前', '占位 · 待填'], ['Next', '占位 · 待填']]
+    // 项目卡 / 光门的内容来自实体配置表（MySQL + 本地缓存），
+    // 没有配置时退回占位文案 —— 离线、旧备份都不会开天窗。
+    const ent = entityOf(e.id);
+    const detail = entityDetail(e.id);
+
+    const rows: [string, string, string?][] = e.kind === 'project'
+      ? [['目标', detail['goal'] || '占位 · 待填'],
+         ['当前', detail['current'] || '占位 · 待填'],
+         ['Next', detail['next'] || '占位 · 待填'],
+         ['仓库', ent?.url || '未配置', ent?.url || undefined]]
       : e.kind === 'gate'
-        ? [['性质', '站外网站入口，非台内纪念内容'], ['URL', '未配置 · 待提供'],
-           ['打开', '新标签页 · 工位保持不变']]
+        ? [['性质', '站外网站入口，非台内纪念内容'],
+           ['URL', ent?.url || '未配置 · 待提供', ent?.url || undefined],
+           ['打开', ent?.url ? '点击光门 · 新标签页' : 'URL 未配置']]
         : [['状态', note ? maturityOf(body) : (e.kind === 'phantom' ? '虚影恒星 · 待写' : '幼苗')],
            ['标签', parseTags(body).length ? parseTags(body).map(t => '#' + t).join(' ') : '—'],
            ['Next', note && body.trim() ? '点正文或 Tab · 直接改' : '点正文写第一句']];
 
-    rows.forEach(([k, v], i) => {
+    rows.forEach(([k, v, href], i) => {
       const d = document.createElement('div');
       if (i === 2) d.className = 'next';
       const b = document.createElement('b');
       b.textContent = k;
       const span = document.createElement('span');
-      span.textContent = v;
+      if (href) {
+        const a = document.createElement('a');
+        a.href = href;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = v;
+        a.title = href;
+        span.appendChild(a);
+      } else {
+        span.textContent = v;
+      }
       d.append(b, span);
       fields.appendChild(d);
     });
@@ -485,7 +505,7 @@ export class Station {
 
     set('vc-readme-h', e.kind === 'gate' ? '边界说明 / SCOPE' : 'README · 摘录');
     set('vc-readme-p', e.kind === 'gate'
-      ? '纪念册只是站外入口：台内只保留一颗恒定亮度的深空天体与 externalUrl 字段，不存在第二份纪念内容。'
+      ? (detail['note'] || '纪念册只是站外入口：台内只保留一颗恒定亮度的深空天体与站外链接，不存在第二份纪念内容。')
       : e.kind === 'project'
         ? '项目卡固定三字段「目标 / 当前 / Next」，不展示指标数字、完成率或提交热力图。'
         : note
@@ -593,7 +613,12 @@ export class Station {
       toast(`推近到 ${e.label}`);
       return;
     }
-    if (e.kind === 'gate') { toast('纪念册 · 站外入口占位：URL 未配置'); return; }
+    if (e.kind === 'gate') {
+      const url = entityOf(e.id)?.url;
+      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+      else toast('纪念册 · 站外入口占位：URL 未配置');
+      return;
+    }
     if (e.kind === 'core') { toast('AI 星核为预留位'); return; }
     if (e.kind === 'spider') { toast('星云蛛 · 注意力化身'); return; }
     if (e.kind === 'phantom') { toast('虚影恒星 · 待写笔记'); this.open(id); return; }

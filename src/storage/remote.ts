@@ -18,6 +18,7 @@ export interface SyncSummary {
   review: number;
   decisions: number;
   assets: number;
+  entities: number;
 }
 
 export interface CloudHealth {
@@ -48,7 +49,8 @@ export async function pullFromCloud(): Promise<SyncSummary> {
     links: bundle.links.length,
     review: bundle.review.length,
     decisions: bundle.decisions.length,
-    assets: bundle.assets.length
+    assets: bundle.assets.length,
+    entities: (bundle.entities ?? []).length
   };
 }
 
@@ -68,6 +70,7 @@ export async function pushToCloud(): Promise<SyncSummary> {
     links: data.counts?.links ?? bundle.links.length,
     review: data.counts?.review ?? bundle.review.length,
     decisions: data.counts?.decisions ?? bundle.decisions.length,
-    assets: data.counts?.assets ?? bundle.assets.length
+    assets: data.counts?.assets ?? bundle.assets.length,
+    entities: data.counts?.entities ?? (bundle.entities ?? []).length
   };
 }

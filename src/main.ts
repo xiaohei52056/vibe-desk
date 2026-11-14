@@ -17,6 +17,7 @@ import { walkThread, threads, linkWeight, linkNorm, linkKey, walkedKey } from '.
 import { RunnerPanel } from './sandbox/panel';
 import { applyBundle, buildBundle, downloadBundle, parseBundle } from './storage/transfer';
 import { pullFromCloud, pushToCloud } from './storage/remote';
+import { initEntityRows, syncEntityRows } from './storage/entityData';
 import { loadView, rememberView } from './core/session';
 import { MOD_KEY } from './ui/platform';
 
@@ -326,17 +327,8 @@ function importData(): void {
     if (!file) { input.remove(); return; }
     void file.text().then(async text => {
       const bundle = parseBundle(text);
-      if (getState().station) {
-        await panel.teardown();
-        stationRef?.close();
-      }
       await applyBundle(bundle);
-      await initNotes();
-      await Promise.all([initReview(), initDecisions()]);
-      syncIndex();
-      syncExtras();
-      rerenderEntities();
-      palette.refresh();
+      await refreshAfterReplace();
       toast(`已导入 ${bundle.notes.length} 篇 · 原有数据已被替换`);
     }).catch(err => {
       console.warn('[transfer] 导入失败', err);
@@ -356,6 +348,7 @@ async function refreshAfterReplace(): Promise<void> {
   }
   await initNotes();
   await Promise.all([initReview(), initDecisions()]);
+  await initEntityRows();   // 光门 / 项目卡配置跟着 Bundle 一起换
   syncIndex();
   syncExtras();
   rerenderEntities();
@@ -424,6 +417,7 @@ async function restoreView(): Promise<void> {
 void initNotes().then(async report => {
   // 回看与决策都要在笔记就位之后再读：前者按「最后落笔时间」算到期，后者要挂到笔记上
   await Promise.all([initReview(), initDecisions()]);
+  await initEntityRows();          // 本地缓存先让光门 / 项目卡生效
   syncIndex();
   syncExtras();
   rerenderEntities();
@@ -431,6 +425,10 @@ void initNotes().then(async report => {
   if (report.source === 'legacy') toast(`已从原型迁移 ${report.notes} 篇笔记`);
   else if (report.source === 'seed') toast('首次启动 · 已放入七篇示例笔记');
   console.info('[notes]', report);
+  // 后端可达时拉一次实体配置：只改光门 / 项目卡，绝不碰本地笔记数据
+  void syncEntityRows().then(ok => {
+    if (ok) { rerenderEntities(); stationRef?.refresh(); }
+  });
   void restoreView();
 }).catch(err => {
   console.warn('[notes] 存储不可用，退回只读', err);

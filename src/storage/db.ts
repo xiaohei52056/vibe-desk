@@ -42,10 +42,22 @@ export interface DecisionRow {
   at: number;
 }
 
+export interface EntityRow {
+  id: string;
+  kind: 'gate' | 'project' | 'core' | 'spider';
+  label: string;
+  sub: string;
+  /** 站外入口 / 仓库链接 */
+  url: string;
+  /** JSON 字符串：项目卡 {goal,current,next} 或光门 {note} */
+  detail: string;
+  updatedAt: number;
+}
+
 export const DB_NAME = 'vibedesk';
-/** v2：新增 assets（粘贴进笔记的图片）。升级只加表，不动旧数据 */
-export const DB_VERSION = 2;
-export const STORES = ['notes', 'links', 'review', 'decisions', 'assets', 'meta'] as const;
+/** v3：新增 entities（光门与项目卡配置）。升级只加表，不动旧数据 */
+export const DB_VERSION = 3;
+export const STORES = ['notes', 'links', 'review', 'decisions', 'assets', 'meta', 'entities'] as const;
 export type StoreName = (typeof STORES)[number];
 
 /** 原型用的键。迁移只读它，永不删除 */
@@ -82,6 +94,9 @@ export function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains('meta')) {
         db.createObjectStore('meta', { keyPath: 'k' });
+      }
+      if (!db.objectStoreNames.contains('entities')) {
+        db.createObjectStore('entities', { keyPath: 'id' });
       }
     };
     req.onsuccess = () => resolve(req.result);

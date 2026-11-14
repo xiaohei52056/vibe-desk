@@ -31,4 +31,7 @@ public class BundleDto {
     private List<DecisionRecord> decisions;
 
     private List<Asset> assets;
+
+    /** v3：光门与项目卡配置（v1/v2 旧包没有这个字段，前端当空数组处理） */
+    private List<SiteEntity> entities;
 }

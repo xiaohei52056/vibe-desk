@@ -65,6 +65,30 @@ const numOf = (id: string): number => {
 let extra: readonly EntityDef[] = Object.freeze([]);
 let studyList: readonly EntityDef[] = STUDY;
 
+/* ============================================================
+   实体内容覆盖（v3）
+   —— 坐标、kind、tone、scene 永远留在上面那张冻结表里；
+      数据库只覆盖「名字 / 副标题」这类内容字段。
+      于是纪念册光门与项目卡能换成真实数据，而位置一寸都不动。
+   ============================================================ */
+let overrides: ReadonlyMap<string, { label: string; sub: string }> = new Map();
+
+export function setEntityOverrides(
+  rows: readonly { id: string; label?: string; sub?: string }[]
+): void {
+  overrides = new Map(rows.map(r => [r.id, { label: r.label ?? '', sub: r.sub ?? '' }]));
+}
+
+function withOverride(e: EntityDef): EntityDef {
+  const o = overrides.get(e.id);
+  if (!o) return e;
+  return Object.freeze({
+    ...e,
+    label: o.label || e.label,
+    sub: o.sub || e.sub
+  });
+}
+
 function allocSlot(id: string, used: Set<string>): { x: number; y: number } {
   const n = numOf(id);
   const start = Number.isFinite(n) ? Math.max(0, n - 8) % SLOTS.length : 0;
@@ -140,10 +164,12 @@ export const hideEntity = (id: string): void => {
   saveHidden();
 };
 
-export const entitiesOf = (scene: SceneName): readonly EntityDef[] =>
-  scene === 'study'
+export const entitiesOf = (scene: SceneName): readonly EntityDef[] => {
+  const base = scene === 'study'
     ? (hidden.size ? studyList.filter(e => !hidden.has(e.id)) : studyList)
     : SCENES[scene];
+  return overrides.size ? Object.freeze(base.map(withOverride)) : base;
+};
 
 export function findEntity(id: string): { e: EntityDef; scene: SceneName } | null {
   for (const scene of Object.keys(SCENES) as SceneName[]) {

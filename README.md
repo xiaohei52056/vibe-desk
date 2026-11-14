@@ -13,7 +13,8 @@
 - **决策日志**：`Ctrl+D` 记录「问题 / 选项 / 选了谁 / 理由」，只做脚注不做列表页
 - **代码沙盒**：只跑 Python / Java。Python 走 Pyodide（本地运行时，离线可用）；Java 走本机 JDK（dev server 内置执行器）；死循环 5 秒强杀；支持标准输入
 - **搜索**：`/` 命令面板，标题 / 正文 / 标签 / 决策全索引
-- **数据**：一份 JSON 导出 / 导入（含图片）；云端拉取 / 推送（走后端）
+- **数据**：一份 JSON 导出 / 导入（含图片与站点配置）；云端拉取 / 推送（走后端）
+- **站点实体**：纪念册光门与代码星系项目卡的数据存在 MySQL `entities` 表，前端启动自动同步；坐标仍冻结在 `coords.ts`，数据库只管名字、链接与卡片内容
 
 ## 启动
 
@@ -34,7 +35,7 @@ mysql -uroot -p < backend/src/main/resources/init-db.sql
 
 # 2. 改 backend/src/main/resources/application.yml 里的数据库密码
 
-# 3. 启动（空库会自动落 18 篇种子笔记 + 链接 + 决策 + 图片）
+# 3. 启动（空库会自动落 18 篇种子笔记 + 链接 + 决策 + 图片 + 4 条站点实体）
 cd backend
 mvn spring-boot:run          # http://localhost:8080
 ```
@@ -56,9 +57,15 @@ POST /api/sync/bundle   全量替换（推）
 | GET/PUT/DELETE | `/api/review` | 回看卡（一篇一张） |
 | GET/POST/PUT/DELETE | `/api/decisions` | 决策日志（支持 by-note 查询） |
 | GET/POST/DELETE | `/api/assets` | 图片资源（列表不含 base64，取单张给全量） |
+| GET/PUT/DELETE | `/api/entities` | 站点实体（纪念册光门 / 项目卡） |
 | GET/PUT/DELETE | `/api/meta/{k}` | 内部状态 KV |
-| GET/POST | `/api/sync/bundle` | 全量同步（拉 / 替换式推） |
+| GET/POST | `/api/sync/bundle` | 全量同步 v3（笔记/链接/回看/决策/图片/实体；拉 / 替换式推） |
 | GET | `/api/health` | 健康检查 + 数据量 |
+
+`entities` 表的 4 条种子：光门 `gate` 指向星河回忆相册 `http://8.148.6.228:8082/mem/`；
+项目卡 `p1/p2/p3` 依次为 `sweet-memory`、`my-blog`、`skill-evidence-lint`。
+坐标不在库里：`coords.ts` 的 `gate / p1 / p2 / p3` 仍是 Object.freeze 的冻结契约，
+数据库只覆盖名字、副标题、链接与卡片三字段（目标 / 当前 / Next）。
 
 ## 设计原则
 
