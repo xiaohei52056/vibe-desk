@@ -23,6 +23,7 @@ import { loadView, rememberView } from './core/session';
 import { MOD_KEY } from './ui/platform';
 import { mountProjectLinks, relatedProjectIds, type ProjectLinksLayer } from './space/projectLinks';
 import { mountLinkGesture, linkSource, linkHighlight, type LinkGesture } from './space/linkGesture';
+import { mountVaultPanel } from './space/vaultPanel';
 import { cutTie } from './space/tieActions';
 import { migrateAutoTies, TIE_EVENT } from './notes/ties';
 
@@ -82,6 +83,10 @@ linkGesture = mountLinkGesture(entitiesEl, world, {
   setVisual: (from, target, candidates, cut) =>
     entities.setLinkVisual(from, target, candidates, cut)
 });
+
+// 学习资料库（星云蛛改造）：银河层点击实体打开，Esc / 点关闭收起
+const vaultPanel = mountVaultPanel();
+window.addEventListener('vibe:vault-open', () => vaultPanel.open());
 
 stationRef = new Station(stationEl, entities);
 stationRef.onDelete = (id) => { void removeNote(id); };
@@ -582,7 +587,7 @@ window.addEventListener('pointerdown', (ev: PointerEvent) => {
   if (!s.station) return;
   const t = ev.target;
   if (t instanceof Element &&
-      t.closest('#station,#palette,#runner,#toast,#decisions,#hud-top,#hud-bottom,#tie-tray,.proj-links,.entity')) return;
+      t.closest('#station,#palette,#runner,#toast,#decisions,#hud-top,#hud-bottom,#tie-tray,#vault-panel,.proj-links,.entity')) return;
   // 与 Esc 同一套语义：书写态先退回观看态，观看态再收站
   if (s.mode === 'write') { void panel.teardown(); stationRef?.toView(); return; }
   stationRef?.close();
@@ -592,7 +597,7 @@ window.addEventListener('pointerdown', (ev: PointerEvent) => {
 // 与详情页的区别：这里点空白不能「按下即走」——按下往往是拖镜的开始，
 // 必须按下与抬起几乎在同一位置（<6px 位移）才算一次点击。
 let blankDown: { x: number; y: number } | null = null;
-const BLANK_HIT = '#station,#palette,#runner,#toast,#decisions,#hud-top,#hud-bottom,#tie-tray,.proj-links,.entity';
+const BLANK_HIT = '#station,#palette,#runner,#toast,#decisions,#hud-top,#hud-bottom,#tie-tray,#vault-panel,.proj-links,.entity';
 
 window.addEventListener('pointerdown', (ev: PointerEvent) => {
   blankDown = null;

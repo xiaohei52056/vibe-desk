@@ -217,8 +217,8 @@ export function mountLinkGesture(
 
   const onDown = (ev: PointerEvent): void => {
     if (ev.button !== 0) return;
-    // 剪线浮层与带「撤销」的提示都不算点空白：点撤销时保持连线态，浮层好跟着刷新
-    if (ev.target instanceof Element && ev.target.closest('#tie-tray,#toast')) return;
+    // 剪线浮层、资料库面板与带「撤销」的提示都不算点空白：点撤销时保持连线态，浮层好跟着刷新
+    if (ev.target instanceof Element && ev.target.closest('#tie-tray,#toast,#vault-panel')) return;
     const n = ev.target instanceof Element
       ? ev.target.closest<HTMLElement>('.entity') : null;
     const onEntity = !!n && root.contains(n);

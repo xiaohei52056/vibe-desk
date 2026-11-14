@@ -654,7 +654,7 @@ export class Station {
       return;
     }
     if (e.kind === 'core') { toast('AI 星核为预留位'); return; }
-    if (e.kind === 'spider') { toast('星云蛛 · 注意力化身'); return; }
+    if (e.kind === 'spider') { window.dispatchEvent(new CustomEvent('vibe:vault-open')); return; }
     if (e.kind === 'phantom') { toast('虚影恒星 · 待写笔记'); this.open(id); return; }
     this.open(id);
   }

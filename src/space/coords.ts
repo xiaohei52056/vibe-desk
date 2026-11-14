@@ -14,7 +14,7 @@ const GALAXY = frozen([
   { id: 'code',   kind: 'galaxy',  tone: 'code',  x: .73, y: .70, label: '项目星系', sub: 'Project Galaxy · Enter 进入',  scene: 'code' },
   { id: 'core',   kind: 'core',    tone: 'core',  x: .50, y: .47, label: 'AI 星核',  sub: '预留位 · v2 接入' },
   { id: 'gate',   kind: 'gate',    tone: 'gate',  x: .86, y: .19, label: '纪念册',   sub: '站外入口 · URL 未配置' },
-  { id: 'spider', kind: 'spider',  tone: '',      x: .36, y: .65, label: '星云蛛',   sub: '注意力化身' }
+  { id: 'spider', kind: 'spider',  tone: '',      x: .36, y: .65, label: '学习资料库', sub: '点击浏览 GitHub 学习文件' }
 ]);
 
 const STUDY = frozen([
