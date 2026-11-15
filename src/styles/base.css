@@ -188,9 +188,9 @@ body.space3d .entity[data-kind="spider"] .dot::before{display:none}
 
 /* ---------- 学习资料库（星云蛛改造） ---------- */
 #vault-panel{position:fixed;z-index:60;left:50%;top:50%;transform:translate(-50%,-50%);
-  width:min(560px,92vw);max-height:76vh;display:flex;flex-direction:column;box-sizing:border-box;
+  width:min(1180px,96vw);height:min(86vh,820px);display:flex;flex-direction:column;box-sizing:border-box;
   border:1px solid rgba(201,160,99,.42);border-radius:8px;
-  background:rgba(18,25,36,.97);box-shadow:0 18px 50px rgba(0,0,0,.5);
+  background:#121924;box-shadow:0 18px 50px rgba(0,0,0,.5);
   color:var(--warm);pointer-events:auto}
 #vault-panel[hidden]{display:none}
 .vp-head{display:flex;align-items:center;justify-content:space-between;
@@ -212,10 +212,59 @@ body.space3d .entity[data-kind="spider"] .dot::before{display:none}
   color:#C9D6EE;font-size:12px;padding:3px 8px;width:150px;outline:none}
 .vp-search:focus{border-color:rgba(232,195,126,.6)}
 .vp-body{flex:1;min-height:0;overflow:auto;padding:6px 8px 10px}
+/* 双栏：左文件树常驻，右阅读区 */
+.vp-main{flex:1;min-height:0;display:flex;border-top:1px solid rgba(201,160,99,.14)}
+.vp-side{flex:none;width:330px;min-width:0;display:flex;flex-direction:column;
+  border-right:1px solid rgba(201,160,99,.16)}
+.vp-main.settings .vp-side{display:none}
+.vp-main.wide .vp-side{display:none}
+.vp-filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 10px;
+  border-bottom:1px solid rgba(201,160,99,.12)}
+.vp-filters[hidden]{display:none}
+.vp-chip{background:none;border:1px solid rgba(201,160,99,.24);border-radius:11px;
+  color:#8FA0B8;font-size:11px;padding:1px 8px;cursor:pointer;font-family:inherit;
+  line-height:1.6;white-space:nowrap}
+.vp-chip:hover{color:#FFE3A8;border-color:rgba(232,195,126,.5)}
+.vp-chip.on{background:rgba(232,195,126,.16);border-color:rgba(232,195,126,.55);color:#FFE3A8}
+.vp-sort-lab{margin-left:auto;font-size:11px;color:#8FA0B8;white-space:nowrap}
+.vp-sort{background:#0C111B;border:1px solid rgba(201,160,99,.28);border-radius:4px;
+  color:#8FA0B8;font-size:11px;padding:1px 3px;font-family:inherit;outline:none;cursor:pointer}
+.vp-sort:focus{border-color:rgba(232,195,126,.6)}
+.vp-list-pane{flex:1;min-height:0;overflow:auto;padding:6px 8px 10px}
+.vp-pane{flex:1;min-width:0;display:flex;flex-direction:column}
+.vp-pane-head{display:flex;align-items:center;gap:10px;padding:6px 12px;min-height:33px;
+  border-bottom:1px solid rgba(201,160,99,.14);position:sticky;top:0;background:#121924;
+  z-index:1}
+.vp-pane-head:empty{display:none}
+.vp-pane-name{color:#FFE3A8;font-size:12px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;max-width:44%}
+.vp-pane-meta{font-size:11px;color:#8FA0B8;white-space:nowrap}
+.vp-pane-acts{margin-left:auto;display:flex;align-items:center;gap:6px}
+.vp-pane-acts button{background:none;border:1px solid rgba(201,160,99,.26);border-radius:3px;
+  color:#8FA0B8;font-size:11px;padding:1px 7px;cursor:pointer;font-family:inherit;
+  line-height:1.6;white-space:nowrap}
+.vp-pane-acts button:hover{color:#FFE3A8;border-color:rgba(232,195,126,.55);
+  background:rgba(232,195,126,.1)}
+.vp-pane-body{flex:1;min-height:0;overflow:auto;padding:2px 12px 12px}
+.vp-list-pane::-webkit-scrollbar,.vp-pane-body::-webkit-scrollbar,
+.vp-sheet-table::-webkit-scrollbar{width:8px;height:8px}
+.vp-list-pane::-webkit-scrollbar-track,.vp-pane-body::-webkit-scrollbar-track,
+.vp-sheet-table::-webkit-scrollbar-track{background:transparent}
+.vp-list-pane::-webkit-scrollbar-thumb,.vp-pane-body::-webkit-scrollbar-thumb,
+.vp-sheet-table::-webkit-scrollbar-thumb{background:rgba(201,160,99,.28);border-radius:4px}
+.vp-list-pane::-webkit-scrollbar-thumb:hover,.vp-pane-body::-webkit-scrollbar-thumb:hover,
+.vp-sheet-table::-webkit-scrollbar-thumb:hover{background:rgba(201,160,99,.5)}
+
+.vp-pane-body.fill{overflow:hidden;display:flex;padding:8px}
+@media (max-width:900px){.vp-side{width:270px}.vp-pane-name{max-width:34%}}
+@media (max-width:720px){.vp-main.reading .vp-side{display:none}}
 .vp-list{display:flex;flex-direction:column}
 .vp-row{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:4px;cursor:pointer;
   border-bottom:1px solid rgba(255,255,255,.05);font-size:13px}
 .vp-row:hover{background:rgba(232,195,126,.08)}
+.vp-row.sel{background:rgba(232,195,126,.1)}
+.vp-row.here{background:rgba(232,195,126,.16);box-shadow:inset 2px 0 0 #E8C37E}
+.vp-row.here .vp-name{color:#FFE3A8}
 .vp-icon{flex:none;width:16px;text-align:center;font-size:11px;color:#8FA0B8}
 .vp-icon.k-folder{color:#E8C37E}
 .vp-icon.k-md{color:#FFD98E}
@@ -258,6 +307,34 @@ body.space3d .entity[data-kind="spider"] .dot::before{display:none}
   border-radius:4px;color:#FFE3A8;font-size:12px;padding:6px 16px;cursor:pointer}
 .vp-save:hover{background:rgba(232,195,126,.26)}
 .vp-tip{font-size:11px;color:#8FA0B8}
+
+/* docx 正文（mammoth 转换结果） */
+.vp-doc{font-size:13px;line-height:1.75;color:#C9D6EE;padding:4px 12px;overflow:auto}
+.vp-doc h1,.vp-doc h2,.vp-doc h3,.vp-doc h4,.vp-doc h5{color:#FFE3A8;margin:1em 0 .4em;line-height:1.4}
+.vp-doc p{margin:.5em 0}
+.vp-doc ul,.vp-doc ol{margin:.5em 0;padding-left:1.6em}
+.vp-doc li{margin:.25em 0}
+.vp-doc table{border-collapse:collapse;margin:.6em 0}
+.vp-doc table td,.vp-doc table th{border:1px solid rgba(201,160,99,.3);padding:4px 8px;font-size:12px}
+.vp-doc blockquote{margin:.6em 0;padding:2px 12px;border-left:3px solid rgba(201,160,99,.5);color:#8FA0B8}
+.vp-doc img{max-width:100%;border-radius:4px}
+.vp-doc a{color:#85B7EB}
+
+/* xlsx 表格 */
+.vp-sheet{padding:4px 8px}
+.vp-sheet-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:2px 2px 10px}
+.vp-sheet-tab{background:#0C111B;border:1px solid rgba(201,160,99,.3);border-radius:4px;
+  color:#C9D6EE;font-size:11px;padding:3px 10px;cursor:pointer;font-family:inherit}
+.vp-sheet-tab:hover{border-color:rgba(232,195,126,.6);color:#FFE3A8}
+.vp-sheet-tab.here{background:rgba(232,195,126,.18);border-color:#E8C37E;color:#FFE3A8}
+.vp-sheet-table{overflow:auto}
+.vp-sheet-table table{border-collapse:collapse;width:100%;font-size:12px}
+.vp-sheet-table td,.vp-sheet-table th{border:1px solid rgba(201,160,99,.28);padding:3px 8px;
+  color:#C9D6EE;white-space:nowrap}
+.vp-sheet-table tr:nth-child(odd) td{background:rgba(255,255,255,.03)}
+
+/* html 渲染（沙箱 iframe） */
+.vp-html{flex:1;width:100%;min-height:0;height:auto;border:0;background:#fff;border-radius:4px;display:block}
 
 /* ---------- 项目线本体上的 ✕ ---------- */
 .proj-links line.hit{stroke:transparent;stroke-width:18;

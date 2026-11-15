@@ -24,6 +24,9 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
     "@lezer/highlight": "^1.2.5",
-    "three": "^0.170.0"
+    "buffer": "^6.0.3",
+    "mammoth": "^1.13.0",
+    "three": "^0.170.0",
+    "xlsx": "^0.18.5"
   }
 }

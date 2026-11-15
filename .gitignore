@@ -7,3 +7,6 @@ dist/
 
 # 后端
 backend/target/
+
+# 本地调试截图（不进版本库）
+.*.png

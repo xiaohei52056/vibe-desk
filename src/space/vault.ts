@@ -39,6 +39,10 @@ export const DEFAULT_CFG: VaultConfig = { repo: 'xiaohei52056/study-vault', bran
 
 const META_BASES = ['/api', 'http://localhost:8080/api'];
 
+/** raw 直链最多等 8 秒：连上不返回也算不可达，切 Contents API */
+const RAW_TIMEOUT = 8000;
+const API_TIMEOUT = 12000;
+
 const normCfg = (raw: unknown): VaultConfig | null => {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Partial<VaultConfig>;
@@ -156,10 +160,10 @@ export const MD_EXT = new Set(['md', 'markdown']);
 export const TEXT_EXT = new Set(['txt', 'json', 'yml', 'yaml', 'toml', 'csv', 'log', 'ini', 'conf',
   'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'java', 'kt', 'go', 'rs', 'c', 'h', 'cpp', 'hpp',
   'cs', 'rb', 'php', 'sh', 'bat', 'ps1', 'sql', 'html', 'css', 'scss', 'vue', 'swift', 'xml', 'ipynb']);
-/** 浏览器没法预览的文档类：点击即下载 */
-export const DOC_EXT = new Set(['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'rar', '7z', 'gz', 'tar', 'exe', 'apk']);
+/** 浏览器没法预览、点击即下载的文档/压缩/可执行类（docx/xlsx 已单独走面板内预览） */
+export const DOC_EXT = new Set(['doc', 'xls', 'ppt', 'pptx', 'zip', 'rar', '7z', 'gz', 'tar', 'exe', 'apk']);
 
-export type FileKind = 'folder' | 'md' | 'image' | 'text' | 'pdf' | 'doc' | 'other';
+export type FileKind = 'folder' | 'md' | 'image' | 'text' | 'pdf' | 'docx' | 'sheet' | 'html' | 'doc' | 'other';
 
 export function kindOf(path: string, isDir: boolean): FileKind {
   if (isDir) return 'folder';
@@ -167,6 +171,9 @@ export function kindOf(path: string, isDir: boolean): FileKind {
   if (MD_EXT.has(ext)) return 'md';
   if (IMAGE_EXT.has(ext)) return 'image';
   if (ext === 'pdf') return 'pdf';
+  if (ext === 'docx') return 'docx';
+  if (ext === 'xlsx') return 'sheet';
+  if (ext === 'html' || ext === 'htm') return 'html';
   if (DOC_EXT.has(ext)) return 'doc';
   if (TEXT_EXT.has(ext)) return 'text';
   return 'other';
@@ -198,16 +205,27 @@ export async function fetchContent(
   path: string,
   wantBlob: boolean
 ): Promise<Blob | string> {
+  // raw 可能「连上但不返回」（DNS 污染/被墙时的典型表现）：不设超时就永远卡住，
+  // 用户看到的是一个空窗口。超时即当失败，切 API 兜底。
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), RAW_TIMEOUT);
   try {
-    const raw = await fetch(rawUrl(cfg, path));
+    const raw = await fetch(rawUrl(cfg, path), { signal: ctrl.signal });
     if (raw.ok) return wantBlob ? await raw.blob() : await raw.text();
-  } catch { /* raw 不可达 → 走 API 兜底 */ }
+  } catch { /* raw 不可达/超时 → 走 API 兜底 */ } finally { clearTimeout(timer); }
 
   const apiPath = path.split('/').map(encodeURIComponent).join('/');
-  const res = await fetch(
-    `https://api.github.com/repos/${cfg.repo}/contents/${apiPath}?ref=${cfg.branch}`,
-    { headers: { Accept: 'application/vnd.github+json' } }
-  );
+  const apiCtrl = new AbortController();
+  const apiTimer = setTimeout(() => apiCtrl.abort(), API_TIMEOUT);
+  let res: Response;
+  try {
+    res = await fetch(
+      `https://api.github.com/repos/${cfg.repo}/contents/${apiPath}?ref=${cfg.branch}`,
+      { headers: { Accept: 'application/vnd.github+json' }, signal: apiCtrl.signal }
+    );
+  } catch {
+    throw { kind: 'offline' } as VaultError;
+  } finally { clearTimeout(apiTimer); }
   if (res.status === 404) throw { kind: 'missing', repo: cfg.repo } as VaultError;
   if (res.status === 403) throw { kind: 'ratelimit' } as VaultError;
   if (!res.ok) throw { kind: 'offline' } as VaultError;
