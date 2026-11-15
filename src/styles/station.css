@@ -61,10 +61,47 @@
 /* 关联笔记 / 标签 / 关联项目：一排可点的小 chip，点它不会误进书写态 */
 .vc-fields .chip-link{display:inline-block;margin-right:10px;white-space:nowrap}
 .vc-fields .chip-link:hover{color:#FFE3A8}
+/* 笔记 / 光门：说明区贴底（短内容不至于悬在半空）。
+   项目卡例外（.flow）：README 才是主内容，跟着字段自然往下流，页脚吸底。 */
 .vc-readme{margin-top:auto;border-top:1px solid rgba(90,106,130,.35);padding-top:16px}
+.vc-readme.flow{margin-top:26px}
+.vc-readme.flow~.vc-foot{margin-top:auto}
+.vc-readme-head{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
 .vc-readme h4{font-family:var(--mono);font-size:var(--fs-micro);font-weight:400;color:var(--ui);
-  letter-spacing:.08em;margin-bottom:10px}
-.vc-readme p{font-size:var(--fs-small);color:#9AA8CC;line-height:1.9}
+  letter-spacing:.08em}
+.vc-readme-tools{margin-left:auto;display:flex;align-items:center;gap:12px;
+  font-family:var(--mono);font-size:var(--fs-micro);color:#8FA0B8}
+.vc-readme-tools a{color:#C9A063;text-decoration:none;border-bottom:1px solid rgba(201,160,99,.4)}
+.vc-readme-tools a:hover{color:#FFE3A8;border-bottom-color:#E8C37E}
+.vc-rm-hint{color:#7C8AA0;letter-spacing:.06em}
+.vc-readme-body{font-size:var(--fs-small);color:#9AA8CC;line-height:1.9}
+/* 可折叠：默认露出前半屏，点一下看全文（超长 README 不把站体撑爆） */
+.vc-readme.can-open{cursor:pointer}
+.vc-readme.can-open:hover .vc-rm-hint{color:#C9A063}
+.vc-readme.can-open .vc-readme-body{max-height:190px;overflow:hidden;
+  -webkit-mask-image:linear-gradient(#000 78%,transparent 100%);
+  mask-image:linear-gradient(#000 78%,transparent 100%)}
+.vc-readme.open .vc-readme-body{max-height:none;overflow:visible;
+  -webkit-mask-image:none;mask-image:none}
+/* README 里的 Markdown：和资料库面板一个调子，但更克制（这是卡片，不是阅读器） */
+.vc-readme-body h1,.vc-readme-body h2,.vc-readme-body h3,
+.vc-readme-body h4,.vc-readme-body h5{color:#E8E1D2;font-weight:400;line-height:1.5;
+  margin:14px 0 6px;font-size:calc(var(--fs-small) + 1px)}
+.vc-readme-body h1:first-child,.vc-readme-body h2:first-child{margin-top:0}
+.vc-readme-body p{margin:8px 0}
+.vc-readme-body ul,.vc-readme-body ol{margin:8px 0;padding-left:1.4em}
+.vc-readme-body li{margin:3px 0}
+.vc-readme-body a{color:#E8C37E;text-decoration:none;border-bottom:1px solid rgba(232,195,126,.35)}
+.vc-readme-body a:hover{border-bottom-color:#E8C37E}
+.vc-readme-body code{font-family:var(--mono);font-size:.92em;color:#D8CBB4;
+  background:rgba(201,160,99,.12);padding:1px 4px;border-radius:3px}
+.vc-readme-body pre{background:#101720;border:1px solid rgba(201,160,99,.22);border-radius:4px;
+  padding:8px 10px;margin:10px 0;overflow:auto}
+.vc-readme-body pre code{background:none;padding:0;color:#C9D6EE;line-height:1.6}
+.vc-readme-body blockquote{margin:8px 0;padding:2px 12px;border-left:2px solid rgba(201,160,99,.5);
+  color:#8FA0B8}
+.vc-readme-body img{max-width:100%;border-radius:4px;margin:8px 0}
+.vc-readme-body hr{border:0;border-top:1px solid rgba(90,106,130,.35);margin:14px 0}
 /* 观看态的截图缩略图：一排、等高、超出的裁切 —— 不抢正文，但一眼可见 */
 .vc-imgs{display:flex;gap:8px;margin-top:10px}
 .vc-imgs img{height:64px;width:auto;max-width:32%;object-fit:cover;border-radius:4px;

@@ -30,7 +30,11 @@ const inline = (raw: string): string => {
       : `${text}(${href})`);
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/(^|[\s(])\*([^*\n]+)\*/g, '$1<em>$2</em>');
-  s = s.replace(/\u0000(\d+)\u0000/g, (_, i) => stash[Number(i)]);
+  // 徽章是「图片套链接」：链接文字本身是个占位符，只还原一层会漏出半截 \0N\0，
+  // 于是页面上出现孤零零的「0」「1」。反复还原到没有占位符为止。
+  for (let n = 0; n < 5 && s.includes('\u0000'); n++) {
+    s = s.replace(/\u0000(\d+)\u0000/g, (_, i) => stash[Number(i)]);
+  }
   return s;
 };
 

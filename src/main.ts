@@ -1,3 +1,7 @@
+import { Buffer } from 'buffer';
+// mammoth（docx 预览）在浏览器环境需要 Buffer 全局，vite 默认不 polyfill，会白屏
+(globalThis as { Buffer?: typeof Buffer }).Buffer = Buffer;
+
 import { getState, setState, subscribe } from './core/state';
 import { Entities } from './space/entities';
 import { Camera } from './space/camera';
@@ -574,6 +578,8 @@ const esc = (): void => {
   if (runner.isOpen) { runner.hide(); return; }
   const s = getState();
   if (s.station && s.mode === 'write') { void panel.teardown(); stationRef?.toView(); return; }
+  // 项目卡展开了 README：先收起全文，再按一次才收站
+  if (s.station && stationRef?.collapseReadme()) return;
   if (s.station) { stationRef?.close(); return; }
   if (s.scene !== 'galaxy') { exitScene(); return; }
   toast('已在银河层');

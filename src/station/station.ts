@@ -23,6 +23,89 @@ import { assetUrl, imagesOf } from '../notes/images';
 import type { Note } from '../storage/db';
 import { entityDetail, entityOf } from '../storage/entityData';
 import { EASE_OUT, MOTION, growthOrigin, reverseMs, type Segment } from './motion';
+import { mdLite } from '../ui/mdLite';
+
+/* ---------------- 项目卡 README：从仓库直读 ---------------- */
+
+/** 仓库地址 → owner/repo。项目卡的「仓库」字段是唯一入口 */
+function repoOf(url?: string): string | null {
+  const m = url ? /github\.com\/([\w.-]+)\/([\w.-]+)/i.exec(url) : null;
+  if (!m) return null;
+  return `${m[1]}/${m[2].replace(/\.git$/i, '')}`;
+}
+
+const README_NAMES = ['README.md', 'readme.md', 'Readme.md', 'README.MD', 'README.markdown'];
+/** 同一颗星反复进出不要每次重拉：一次会话内记住结果（null = 确认没有） */
+const readmeCache = new Map<string, string | null>();
+
+/**
+ * 取 README 原文，两条通道：
+ *   1. raw 直链 —— 不占 API 配额，但国内网络常被劫持 / 连上不返回；
+ *   2. Contents API（base64）—— raw 不可达时唯一能走的路。
+ * 结果按仓库缓存在内存 + sessionStorage，来回点星不会反复打接口。
+ */
+async function fetchReadme(repo: string): Promise<string | null> {
+  if (readmeCache.has(repo)) return readmeCache.get(repo) ?? null;
+  const key = `vibedesk.readme.${repo}`;
+  try {
+    const hit = sessionStorage.getItem(key);
+    if (hit !== null) { readmeCache.set(repo, hit); return hit; }
+  } catch { /* 隐私模式：只用内存缓存 */ }
+
+  const keep = (text: string | null): string | null => {
+    readmeCache.set(repo, text);
+    if (text) { try { sessionStorage.setItem(key, text); } catch { /* 超配额就算了 */ } }
+    return text;
+  };
+
+  for (const name of README_NAMES) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    try {
+      const res = await fetch(`https://raw.githubusercontent.com/${repo}/HEAD/${name}`,
+        { signal: ctrl.signal });
+      if (res.ok) return keep(await res.text());
+    } catch { /* 换下一个名字 */ } finally { clearTimeout(timer); }
+  }
+
+  for (const name of README_NAMES) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 10000);
+    try {
+      const res = await fetch(`https://api.github.com/repos/${repo}/contents/${name}`,
+        { headers: { Accept: 'application/vnd.github+json' }, signal: ctrl.signal });
+      if (res.ok) {
+        const data = await res.json() as { content?: string; encoding?: string };
+        if (data.encoding === 'base64' && data.content) {
+          const bin = atob(data.content.replace(/\n/g, ''));
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          return keep(new TextDecoder('utf-8').decode(bytes));
+        }
+      }
+    } catch { /* 换下一个名字 */ } finally { clearTimeout(timer); }
+  }
+  return keep(null);
+}
+
+/** README 里的相对图片/链接换成 raw 直链，否则卡片里全是碎图 */
+function absolutize(md: string, repo: string): string {
+  const base = `https://raw.githubusercontent.com/${repo}/HEAD/`;
+  return md.replace(/(!?\[[^\]]*\]\()(?!https?:\/\/|#|\/)([^)\s]+)(\))/g,
+    (_m, head: string, path: string, tail: string) =>
+      `${head}${base}${path.replace(/^\.\//, '')}${tail}`);
+}
+
+/**
+ * 顶部徽章（图片套链接，如 ![Tests](…badge.svg) 外面再包一层链接）在卡片里只是噪音：
+ * 图片挂了就剩一串空 alt 和一个 (LICENSE)。整行丢掉，正文从第一段话开始。
+ */
+function stripBadges(md: string): string {
+  return md
+    .replace(/^[ \t]*(?:\[!\[[^\]\n]*\]\([^)\n]*\)\]\([^)\n]*\)|!\[[^\]\n]*\]\([^)\n]*\))[ \t]*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimStart();
+}
 
 interface Box { left: number; top: number; width: number; height: number }
 
@@ -65,6 +148,8 @@ export class Station {
 
   private readonly delBtn: HTMLButtonElement | null;
   private delTimer = 0;
+  /** 连点两颗星时，晚到的 README 不许盖掉后开的那颗 */
+  private readmeToken = 0;
 
   constructor(
     private readonly el: HTMLElement,
@@ -88,6 +173,16 @@ export class Station {
       const k = found.e.kind;
       if (k !== 'note' && k !== 'phantom') return;   // 项目卡 / 光门没有正文
       this.toWrite();
+    });
+
+    // 项目说明：点一下展开/收起 README 全文。链接自己跳，不拦它
+    el.addEventListener('click', (ev: Event) => {
+      const t = ev.target;
+      if (!(t instanceof Element) || t.closest('a,#vc-del')) return;
+      const box = t.closest<HTMLElement>('#vc-readme');
+      if (!box || !box.classList.contains('can-open')) return;
+      ev.stopPropagation();
+      this.setReadmeOpen(box, !box.classList.contains('open'));
     });
   }
 
@@ -147,10 +242,10 @@ export class Station {
     this.el.dataset[which] = on ? '1' : '0';
   }
 
-  private box(e: EntityDef, mode: StationMode): Box {
+  /** 站体尺寸：书写态铺满，观看态居中（落位不跟星体走，见下方注释） */
+  private box(_e: EntityDef, mode: StationMode): Box {
     const W = innerWidth;
     const H = innerHeight;
-    const r = this.entities.rect(e.id);
     if (mode === 'write') {
       // 书写态基本铺满；runner 打开时要分左右两半，四周留白再收一档
       return {
@@ -173,13 +268,11 @@ export class Station {
         height: h
       };
     }
-    const anchorLeft = r ? r.left : W / 2;
-    const anchorTop = r ? r.top : H / 2;
-    const dirX = anchorLeft > W * .56 ? -1 : 1;
-    let left = dirX > 0 ? anchorLeft + 22 : anchorLeft - w - 22;
-    let top = anchorTop - 40;
-    left = Math.max(20, Math.min(left, W - w - 20));
-    top = Math.max(56, Math.min(top, H - h - 20));
+    // 观看态一律居中：项目卡和笔记都是拿来读的，贴着星体靠边站就得偏头看，
+    // 大屏上还会一半顶到屏幕边缘。生长动画的朝向由 transformOrigin 单独算，
+    // 站体照样是「从这颗星长出来的」，只是落位在屏幕中间。
+    const left = Math.round((W - w) / 2);
+    const top = Math.round(Math.max(56, Math.min((H - h) / 2, H - h - 20)));
     return { left, top, width: w, height: h };
   }
 
@@ -537,20 +630,105 @@ export class Station {
 
     this.fillRecall(e, note);
 
+    // 换星就作废上一颗的 README 请求，并把折叠态清干净
+    this.readmeToken++;
+    const rmBox = document.getElementById('vc-readme');
+    rmBox?.classList.remove('can-open', 'open');
+    rmBox?.classList.toggle('flow', e.kind === 'project');
+    const rmTools = document.getElementById('vc-readme-tools');
+    if (rmTools) rmTools.textContent = '';
+
     set('vc-readme-h', e.kind === 'gate'
       ? '边界说明 / SCOPE'
-      : e.kind === 'project' ? '项目说明 / ABOUT' : '正文 · 摘录');
-    set('vc-readme-p', e.kind === 'gate'
-      ? (detail['note'] || '纪念册只是站外入口：台内只保留一颗恒定亮度的深空天体与站外链接，不存在第二份纪念内容。')
-      : e.kind === 'project'
-        ? (detail['summary'] || '项目卡只放一句话、技术栈与关联，不做指标数字或提交热力图。')
+      : e.kind === 'project' ? '项目说明 / README' : '正文 · 摘录');
+
+    if (e.kind === 'project') {
+      void this.fillProjectReadme(ent?.url, detail['summary'] || '', e.label);
+    } else {
+      set('vc-readme-p', e.kind === 'gate'
+        ? (detail['note'] || '纪念册只是站外入口：台内只保留一颗恒定亮度的深空天体与站外链接，不存在第二份纪念内容。')
         : note
           ? (body.trim() ? excerpt(body, 140) : '还没有正文。点正文或按 Tab 写第一句 —— 不用先想标题。')
           : '笔记以恒星呈现，关联以光丝呈现；坐标一经分配即固定，亮度只在 ±15% 内波动，旧笔记永不降到不可见。');
+    }
+    set('vc-foot-hint', e.kind === 'project'
+      ? '点项目说明展开 README　　Esc 收站'
+      : e.kind === 'gate' ? '点光门打开站外页面　　Esc 收站'
+        : '点正文或 Tab 进入书写　　Esc 收站');
     // 大标题已经写了篇名，顶栏别再重复一次；这里放「我在哪」
     set('wc-name', e.kind === 'note' ? '学习星系 / 恒星' : e.label);
 
     this.fillImages(note);
+  }
+
+  /**
+   * 项目卡：把仓库里的 README.md 直读进来。
+   * 字段只有「简介 / 技术栈 / 仓库」三行，下面一大片空白 —— 那本来该是 README。
+   * 取不到就退回简介，并给一个 GitHub 链接，绝不留一句「加载失败」了事。
+   */
+  private async fillProjectReadme(url: string | undefined, summary: string, title: string): Promise<void> {
+    const box = document.getElementById('vc-readme');
+    const host = document.getElementById('vc-readme-p');
+    const tools = document.getElementById('vc-readme-tools');
+    if (!box || !host || !tools) return;
+    const token = ++this.readmeToken;
+    host.className = 'vc-readme-body';
+    box.classList.remove('can-open', 'open');
+
+    const repo = repoOf(url);
+    if (url) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = 'GitHub 仓库 ↗';
+      a.title = url;
+      tools.appendChild(a);
+    }
+    if (!repo) {
+      host.textContent = summary || '仓库地址不是 GitHub · 在这里只看简介';
+      return;
+    }
+
+    host.textContent = '读取 README…';
+    const md = await fetchReadme(repo);
+    if (token !== this.readmeToken) return;       // 已经切到别的星
+
+    if (!md) {
+      host.textContent = summary
+        ? `${summary}（README 暂不可达 · 点右上「GitHub 仓库」看原文）`
+        : 'README 暂不可达 · 点右上「GitHub 仓库」看原文';
+      return;
+    }
+
+    // 一级标题和页面大标题重复：README 自己那句「# 项目名」去掉
+    const clean = stripBadges(md).replace(/^#\s+([^\n]+)\n?/, (m, t: string) =>
+      t.trim().toLowerCase() === title.trim().toLowerCase() ? '' : m);
+    host.innerHTML = mdLite(absolutize(clean, repo));
+    if (clean.length < 400) return;                // 一屏放得下，不用折叠
+
+    const hint = document.createElement('span');
+    hint.className = 'vc-rm-hint';
+    hint.textContent = '点击展开全文';
+    tools.prepend(hint);
+    box.classList.add('can-open');
+  }
+
+  /** 展开 / 收起 README 全文 */
+  private setReadmeOpen(box: HTMLElement, open: boolean): void {
+    box.classList.toggle('open', open);
+    const hint = box.querySelector<HTMLElement>('.vc-rm-hint');
+    if (hint) hint.textContent = open ? '点击收起' : '点击展开全文';
+    // 收起时内容一下缩短，滚动位置会落在半空：拉回说明区顶部
+    box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  /** Esc 逐层退：README 展开了先收起，别一下子把站收掉 */
+  collapseReadme(): boolean {
+    const box = document.getElementById('vc-readme');
+    if (!box?.classList.contains('open')) return false;
+    this.setReadmeOpen(box, false);
+    return true;
   }
 
   /**
