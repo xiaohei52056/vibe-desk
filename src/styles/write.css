@@ -150,6 +150,9 @@
   color: #F3EFE6; border-color: rgba(201,160,99,.65); background: rgba(201,160,99,.14);
 }
 .runner-bar .run-state { color: #6B7B92; }
+/* 分栏后顶栏变窄：状态文字省略号，按钮一律不换行 */
+.runner-bar .run-state { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.runner-bar button, .runner-bar .rn-chip { white-space: nowrap; flex: none; }
 .runner-bar .sp { margin-left: auto; }
 .runner-bar button {
   font-family: var(--mono); font-size:var(--fs-micro); color: #101720; background: #C9A063;
